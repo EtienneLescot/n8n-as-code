@@ -75,7 +75,7 @@ describe('N8nAsCodeMcpService', () => {
         };
         const cliSpy = jest.spyOn(service as any, 'runCliJsonCommand').mockResolvedValue(mockSearchResponse);
 
-        const docs = await service.searchDocs('webhook', { category: 'hosting', limit: 3 });
+        const docs = await service.searchDocs('webhook', { category: 'deploy', limit: 3 });
 
         expect(cliSpy).toHaveBeenCalledWith([
             'skills',
@@ -83,7 +83,7 @@ describe('N8nAsCodeMcpService', () => {
             'webhook',
             '--json',
             '--category',
-            'hosting',
+            'deploy',
             '--type',
             'documentation',
             '--limit',

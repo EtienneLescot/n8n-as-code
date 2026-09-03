@@ -45,7 +45,18 @@ CI=true
 
 The VS Code extension also respects VS Code's telemetry setting.
 
-On the documentation site, use the telemetry control in the bottom-right corner to disable or re-enable anonymous docs telemetry in your browser.
+### Documentation site
+
+This documentation site collects nothing. No analytics, no page-view counting,
+no cookies, no browser storage. There is no setting to change here because
+nothing is running.
+
+Everything described on the rest of this page concerns the CLI, the VS
+Code/Cursor extension, the MCP server, the skills commands, and the OpenClaw
+plugin. Reading the documentation is not measured.
+
+The site makes no third-party requests at all: the typefaces are served from
+this domain alongside the pages.
 
 ## Connect PostHog Cloud
 

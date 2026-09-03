@@ -80,7 +80,7 @@ function extractNodeDocUrls(llmsTxtContent) {
         if (match) {
             const [, nodeName, relativeUrl] = match;
             // Only include integration/node pages (not general docs)
-            if (relativeUrl.includes('/integrations/') || relativeUrl.includes('/app-nodes/') || relativeUrl.includes('/cluster-nodes/')) {
+            if (relativeUrl.includes('/integrations/builtin/')) {
                 nodeUrls.push({
                     name: nodeName,
                     url: relativeUrl.startsWith('http') ? relativeUrl : `${DOCS_BASE_URL}/${relativeUrl}`

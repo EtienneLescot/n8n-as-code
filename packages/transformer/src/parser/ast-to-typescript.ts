@@ -4,7 +4,7 @@
  * Generates TypeScript code from AST representation
  */
 
-import { WorkflowAST, NodeAST, ConnectionAST, JsonToTypeScriptOptions } from '../types.js';
+import { WorkflowAST, NodeAST, ConnectionAST, JsonToTypeScriptOptions, AI_ARRAY_ROLES, AI_SINGLE_ROLES } from '../types.js';
 import {
     formatTypeScript,
     generateSectionComment,
@@ -109,6 +109,7 @@ export class AstToTypeScriptGenerator {
             if (n.alwaysOutputData) flags.push('[alwaysOutput]');
             if (n.executeOnce) flags.push('[executeOnce]');
             if (n.retryOnFail) flags.push('[retry]');
+            if (n.disabled) flags.push('[disabled]');
             for (const role of subNodeRoles.get(n.propertyName) ?? []) flags.push(`[${role}]`);
             lines.push(`// ${prop} ${t} ${flags.join(' ')}`);
         }
@@ -352,6 +353,16 @@ export class AstToTypeScriptGenerator {
             parts.push(`waitBetweenTries: ${node.waitBetweenTries}`);
         }
         
+        if (node.disabled !== undefined) {
+            parts.push(`disabled: ${node.disabled}`);
+        }
+        if (node.notes !== undefined) {
+            parts.push(`notes: ${JSON.stringify(node.notes)}`);
+        }
+        if (node.notesInFlow !== undefined) {
+            parts.push(`notesInFlow: ${node.notesInFlow}`);
+        }
+        
         return `{\n        ${parts.join(',\n        ')}\n    }`;
     }
 
@@ -447,48 +458,21 @@ export class AstToTypeScriptGenerator {
                 const deps = node.aiDependencies!;
                 const depLines: string[] = [];
                 
-                // Single AI dependencies
-                if (deps.ai_languageModel) {
-                    depLines.push(`ai_languageModel: this.${deps.ai_languageModel}.output`);
+                // Single roles emit `role: this.X.output`, arrays `role: [this.X.output, ...]`
+                // (position = input index, so an unconnected slot stays as an elision).
+                for (const role of [...AI_SINGLE_ROLES, ...AI_ARRAY_ROLES]) {
+                    const value = deps[role];
+                    if (!value) continue;
+
+                    if (Array.isArray(value)) {
+                        if (value.length === 0) continue;
+                        const refs = value.map(r => (r ? `this.${r}.output` : '')).join(', ');
+                        depLines.push(`${role}: [${refs}]`);
+                    } else {
+                        depLines.push(`${role}: this.${value}.output`);
+                    }
                 }
-                if (deps.ai_memory) {
-                    depLines.push(`ai_memory: this.${deps.ai_memory}.output`);
-                }
-                if (deps.ai_outputParser) {
-                    depLines.push(`ai_outputParser: this.${deps.ai_outputParser}.output`);
-                }
-                if (deps.ai_agent) {
-                    depLines.push(`ai_agent: this.${deps.ai_agent}.output`);
-                }
-                if (deps.ai_chain) {
-                    depLines.push(`ai_chain: this.${deps.ai_chain}.output`);
-                }
-                if (deps.ai_textSplitter) {
-                    depLines.push(`ai_textSplitter: this.${deps.ai_textSplitter}.output`);
-                }
-                if (deps.ai_embedding) {
-                    depLines.push(`ai_embedding: this.${deps.ai_embedding}.output`);
-                }
-                if (deps.ai_retriever) {
-                    depLines.push(`ai_retriever: this.${deps.ai_retriever}.output`);
-                }
-                if (deps.ai_reranker) {
-                    depLines.push(`ai_reranker: this.${deps.ai_reranker}.output`);
-                }
-                if (deps.ai_vectorStore) {
-                    depLines.push(`ai_vectorStore: this.${deps.ai_vectorStore}.output`);
-                }
-                
-                // Array AI dependencies
-                if (deps.ai_tool && deps.ai_tool.length > 0) {
-                    const tools = deps.ai_tool.map(t => `this.${t}.output`).join(', ');
-                    depLines.push(`ai_tool: [${tools}]`);
-                }
-                if (deps.ai_document && deps.ai_document.length > 0) {
-                    const documents = deps.ai_document.map(d => `this.${d}.output`).join(', ');
-                    depLines.push(`ai_document: [${documents}]`);
-                }
-                
+
                 if (depLines.length > 0) {
                     lines.push(`        this.${node.propertyName}.uses({`);
                     depLines.forEach((depLine, idx) => {

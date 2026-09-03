@@ -278,11 +278,15 @@ export class NodeSchemaProvider {
             }
 
             const toolName = `${baseName}Tool`;
-            if (this.index.nodes[toolName]) {
+            const toolNode = this.createSyntheticToolNode(node, toolName);
+            // A node indexed by full type (its short name belongs to another package) gets a
+            // tool variant indexed the same way, so the collision is not reintroduced here.
+            const toolKey = key === baseName ? toolName : toolNode.type;
+            if (this.index.nodes[toolKey]) {
                 continue;
             }
 
-            this.index.nodes[toolName] = this.createSyntheticToolNode(node, toolName);
+            this.index.nodes[toolKey] = toolNode;
         }
     }
 

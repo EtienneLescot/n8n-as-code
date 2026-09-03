@@ -154,10 +154,14 @@ async function resolveStableTag() {
     throw new Error('Could not resolve n8n stable tag (API failed and no cache metadata found).');
 }
 
-function run(command, cwd = ROOT_DIR) {
+function run(command, cwd = ROOT_DIR, extraEnv = undefined) {
     console.log(`> ${command}`);
     try {
-        execSync(command, { cwd, stdio: 'inherit' });
+        execSync(command, {
+            cwd,
+            stdio: 'inherit',
+            env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+        });
     } catch (error) {
         console.error(`❌ Command failed: ${command}`);
         process.exit(1);
@@ -266,8 +270,11 @@ async function main() {
         console.log('🏗 Preparing n8n nodes (this may take a while)...');
 
         console.log('📦 Installing dependencies (root)...');
-        // Set CI=true to skip prepare scripts (lefthook install) which can fail
-        run('CI=true pnpm install', CACHE_DIR);
+        // CI=true skips prepare scripts (lefthook install) which can fail. It is passed
+        // through the environment rather than as a `CI=true ...` command prefix, which is
+        // POSIX shell syntax that cmd.exe cannot parse — on Windows it fails with
+        // "'CI' is not recognized as an internal or external command".
+        run('pnpm install', CACHE_DIR, { CI: 'true' });
 
         console.log('🔨 Building n8n-nodes-base (with dependencies)...');
         run('pnpm build --filter n8n-nodes-base...', CACHE_DIR);

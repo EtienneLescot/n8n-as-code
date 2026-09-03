@@ -21,6 +21,65 @@ export interface IWorkflow {
     projectName?: string;        // Name of the project (from shared[0].project.name)
     homeProject?: IProject;      // Full project object for detailed info
     isArchived?: boolean;        // Whether workflow is archived
+    parentFolderId?: string | null;
+    parentFolder?: { id: string; name: string } | null;
+    folderPath?: string[];
+    folderPathString?: string;
+
+    // n8n 2.x publishing model. `active` says whether *a* version runs in
+    // production; these say *which* one. Absent on 1.x, where the workflow
+    // content and the running content are the same thing.
+    activeVersionId?: string;
+    activeVersion?: { id?: string } | null;
+}
+
+/**
+ * Which version of a workflow n8n runs in production, read before a push.
+ *
+ * n8n 2.x splits a workflow in two: the draft (the content, rewritten by every
+ * save) and the published version (a pointer to the version production runs).
+ * `PUT /workflows/:id` moves the pointer to the new content when the workflow
+ * is published, with no opt-out — so a push has to put the pointer back itself.
+ */
+export interface IPublishedVersion {
+    /** `true` when a version of this workflow currently runs in production. */
+    published: boolean;
+    /**
+     * The published version's id, when the instance exposes one.
+     *
+     * Undefined on n8n 1.x, which has no version pointer to restore: there the
+     * workflow content *is* what runs, and a push necessarily changes it.
+     */
+    versionId?: string;
+}
+
+/**
+ * What a push is about to do to the published version.
+ *
+ * Emitted *before* the update lands, on purpose: "your push just changed
+ * production" arrives too late to be a warning.
+ */
+export interface IPushPublishReport {
+    workflowId: string;
+    filename: string;
+    /**
+     * - `goes-live`     — the workflow is published, so this push releases the pushed content.
+     * - `restores`      — `--draft`: the previously published version is re-pinned after the update.
+     * - `not-published` — nothing runs in production, so the push changes no live behaviour.
+     * - `unknown`       — the published version could not be read.
+     */
+    outcome: 'goes-live' | 'restores' | 'not-published' | 'unknown';
+    /** The version re-pinned on `restores`. */
+    versionId?: string;
+}
+
+export interface IFolder {
+    id: string;
+    name: string;
+    parentFolderId?: string | null;
+    path?: string | string[];
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface ITag {
@@ -53,6 +112,56 @@ export interface IWorkflowStatus {
     projectName?: string;
     homeProject?: IProject;
     isArchived?: boolean;
+    /**
+     * Drift detected since the last sync (lightweight, best-effort).
+     *
+     * Present only when there is a base to compare against: the workflow is
+     * `TRACKED` and `.n8n-state.json` holds both a `lastSyncedHash` and a
+     * `lastSyncedAt` for it. Absent otherwise — there is nothing to diff.
+     *
+     *  - `local`:  local file hash differs from `lastSyncedHash`.
+     *  - `remote`: remote `updatedAt` is newer than `lastSyncedAt`.
+     *
+     * Each axis is independent and is itself omitted when its input is missing,
+     * so an absent axis means "unknown", never "unchanged". Both can be absent
+     * at once (unparseable file on an instance that reports no `updatedAt`),
+     * which reads as "there is a sync base, but nothing could be determined".
+     *
+     * `status` retains its git-style meaning ("the workflow is tracked");
+     * `drift` is the orthogonal temporal axis. Authoritative alignment
+     * still requires `n8nac fetch <id>` (per-workflow hash compare).
+     */
+    drift?: IWorkflowDrift;
+    /** `lastSyncedAt` from `.n8n-state.json`, if state has a record for this id. */
+    lastSyncedAt?: string;
+    /** Remote `updatedAt` from the most recent lightweight fetch, if available. */
+    remoteUpdatedAt?: string;
+    parentFolderId?: string | null;
+    parentFolder?: { id: string; name: string } | null;
+    folderPath?: string[];
+    folderPathString?: string;
+}
+
+/**
+ * Per-workflow drift indicators. Both axes are independently computed, and each is
+ * `undefined` when the input it needs is unavailable — "unknown", never "unchanged".
+ * See `IWorkflowStatus.drift` for context.
+ */
+export interface IWorkflowDrift {
+    /**
+     * Local file hash differs from `lastSyncedHash`.
+     *
+     * `undefined` when the local file could not be hashed during the scan (it failed
+     * to parse and was skipped).
+     */
+    local?: boolean;
+    /**
+     * Remote `updatedAt` is newer than `lastSyncedAt`.
+     *
+     * `undefined` when the instance returned no `updatedAt` for the workflow; there is
+     * no timestamp to compare, so remote drift can be neither confirmed nor ruled out.
+     */
+    remote?: boolean;
 }
 
 export interface ISyncConfig {
@@ -66,7 +175,24 @@ export interface ISyncConfig {
     instanceConfigPath?: string; // Optional: explicit path for n8nac-config.json
     projectId: string;           // REQUIRED: Project scope for sync
     projectName: string;         // REQUIRED: Project display name
+    /**
+     * Mirror the local folder structure onto n8n when pushing: a workflow stored
+     * at `Some Folder/foo.workflow.ts` is created/moved into `Some Folder` on the
+     * instance, creating the folder if needed.
+     *
+     * Push-only. n8n's public API never returns a workflow's folder, so pull
+     * cannot restore the remote layout — see docs/guides/folder-sync.md.
+     */
     folderSync?: boolean;
+    /**
+     * Also move workflows OUT of their remote folder when the local file sits at
+     * the workflows-directory root (sends `parentFolderId: null`).
+     *
+     * Off by default: with `folderSync` alone a push never undoes folders created
+     * from the n8n UI, it only ever places workflows the repository has an opinion
+     * about. Turn this on when the repository is the sole source of truth.
+     */
+    folderSyncMoveToRoot?: boolean;
     environmentId?: string;
     environmentName?: string;
     environmentTargetId?: string;

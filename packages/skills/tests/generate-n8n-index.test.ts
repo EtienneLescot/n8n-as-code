@@ -12,7 +12,7 @@ const _dirname = path.dirname(_filename);
 // running the full script (which needs the .n8n-cache directory).
 const require = createRequire(import.meta.url);
 const scriptPath = path.resolve(_dirname, '../../../scripts/generate-n8n-index.cjs');
-const { loadModule, extractDescription } = require(scriptPath);
+const { loadModule, extractDescription, indexNodeEntry } = require(scriptPath);
 
 // ── extractDescription ─────────────────────────────────────────────────────
 
@@ -81,6 +81,53 @@ describe('extractDescription()', () => {
         // Arrow functions have no prototype — should not throw, should fall through
         const result = extractDescription({ arrowFn: () => ({ description: { name: 'x' } }) });
         expect(result).toBeNull();
+    });
+});
+
+// ── indexNodeEntry ─────────────────────────────────────────────────────────
+
+describe('indexNodeEntry()', () => {
+    const entry = (fullType: string, extra: Record<string, any> = {}) => ({
+        name: fullType.split('.').pop(),
+        fullType,
+        properties: [],
+        version: 1,
+        ...extra,
+    });
+
+    it('keys a node by its short name', () => {
+        const map = new Map();
+        expect(indexNodeEntry(map, entry('n8n-nodes-base.code'))).toBe(true);
+        expect([...map.keys()]).toEqual(['code']);
+        expect(map.get('code').indexKey).toBeUndefined();
+    });
+
+    it('keeps a same-named node from another package under its full type', () => {
+        const map = new Map();
+        indexNodeEntry(map, entry('n8n-nodes-base.code'));
+        indexNodeEntry(map, entry('@n8n/n8n-nodes-langchain.code'));
+
+        expect(map.get('code').fullType).toBe('n8n-nodes-base.code');
+        expect(map.get('@n8n/n8n-nodes-langchain.code').fullType).toBe('@n8n/n8n-nodes-langchain.code');
+        expect(map.get('@n8n/n8n-nodes-langchain.code').indexKey).toBe('@n8n/n8n-nodes-langchain.code');
+    });
+
+    it('gives the short name to the base node whatever the extraction order', () => {
+        const map = new Map();
+        indexNodeEntry(map, entry('@n8n/n8n-nodes-langchain.code'));
+        indexNodeEntry(map, entry('n8n-nodes-base.code'));
+
+        expect(map.get('code').fullType).toBe('n8n-nodes-base.code');
+        expect(map.get('@n8n/n8n-nodes-langchain.code').indexKey).toBe('@n8n/n8n-nodes-langchain.code');
+    });
+
+    it('keeps the richer entry when the same node type is extracted twice', () => {
+        const map = new Map();
+        indexNodeEntry(map, entry('n8n-nodes-base.code'));
+        indexNodeEntry(map, entry('n8n-nodes-base.code', { version: [1, 2], properties: [{ name: 'mode' }] }));
+
+        expect(map.size).toBe(1);
+        expect(map.get('code').version).toEqual([1, 2]);
     });
 });
 

@@ -30,20 +30,17 @@ describe('DocsProvider', () => {
         expect(categories[0]).toHaveProperty('name');
         expect(categories[0]).toHaveProperty('description');
 
-        const workflowCategory = categories.find(c => c.name === 'workflows');
-        expect(workflowCategory).toBeDefined();
+        const nodesCategory = categories.find(c => c.name === 'nodes');
+        expect(nodesCategory).toBeDefined();
     });
 
     it('should get guides with fuzzy search', () => {
-        // "webhooc" misspelled to test fuzzy/search capability is slightly better than simple inclusion
-        // Note: Our fuzzy search isn't typo-tolerant yet, but it searches keywords/content
-
         const results = provider.getGuides('webhook', 5);
         expect(Array.isArray(results)).toBe(true);
         expect(results.length).toBeGreaterThan(0);
 
-        // Verify we get results from the expected categories
-        const allowedCategories = ['tutorials', 'advanced-ai', 'workflows'];
+        // Verify we get results from the expected sections on docs.n8n.io
+        const allowedCategories = ['build', 'nodes'];
         const allValid = results.every(r =>
             allowedCategories.includes(r.category) || r.subcategory === 'examples'
         );

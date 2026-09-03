@@ -203,6 +203,50 @@ function createToolVariantProperties(entry) {
     return properties;
 }
 
+/**
+ * Compare two entries for the same index key (e.g. the V1 and V2 files of one node)
+ * and tell whether the candidate carries richer metadata than the one already stored.
+ */
+function isBetterEntry(candidate, existing) {
+    const existingHasVersions = Array.isArray(existing.version) && existing.version.length > 1;
+    const candidateHasVersions = Array.isArray(candidate.version) && candidate.version.length > 1;
+    if (candidateHasVersions !== existingHasVersions) return candidateHasVersions;
+    return (candidate.properties?.length || 0) > (existing.properties?.length || 0);
+}
+
+/**
+ * Store an entry under `key`, keeping the richer one when the key is already taken.
+ * Entries stored under anything other than their short name carry `indexKey` so the
+ * enrichment step keys the technical index the same way.
+ */
+function storeEntry(resultsMap, key, entry) {
+    const existing = resultsMap.get(key);
+    if (existing && !isBetterEntry(entry, existing)) return false;
+
+    resultsMap.set(key, key === entry.name ? entry : { ...entry, indexKey: key });
+    return !existing;
+}
+
+/**
+ * Insert an extracted node into the index map. The short name is the primary key; when two
+ * packages ship the same one (n8n-nodes-base.code vs @n8n/n8n-nodes-langchain.code) the base
+ * node keeps it — short-name lookups stay backwards compatible — and the other variant is
+ * indexed under its full type instead of being dropped, so it stays reachable by full type.
+ * Returns true when a new key was created.
+ */
+function indexNodeEntry(resultsMap, entry) {
+    const shortEntry = resultsMap.get(entry.name);
+    if (!shortEntry || shortEntry.fullType === entry.fullType) {
+        return storeEntry(resultsMap, entry.name, entry);
+    }
+
+    const demoted = entry.fullType.startsWith('n8n-nodes-base.') ? shortEntry : entry;
+    if (demoted !== entry) {
+        resultsMap.set(entry.name, entry);
+    }
+    return storeEntry(resultsMap, demoted.fullType, demoted);
+}
+
 function createToolVariantEntry(entry) {
     const typePrefix = entry.fullType.includes('.')
         ? entry.fullType.slice(0, entry.fullType.lastIndexOf('.'))
@@ -272,58 +316,27 @@ async function extractNodes() {
                 }
 
                 const fullType = `${prefix}.${description.name}`;
+                const entry = {
+                    name: description.name,
+                    fullType: fullType,
+                    displayName: description.displayName,
+                    description: description.description,
+                    icon: description.icon,
+                    group: description.group,
+                    version: description.allVersions || description.version || 1,
+                    credentials: cloneValue(description.credentials || []),
+                    properties: description.properties || [],
+                    sourcePath: fullPath.replace(ROOT_DIR, ''),
+                    usableAsTool: Boolean(description.usableAsTool)
+                };
 
-                // VERSIONING LOGIC: Deduplicate by name
-                const existing = resultsMap.get(description.name);
-
-                // If we already have it, only replace if this one looks "better" (has versions or more props)
-                let shouldReplace = !existing;
-                if (existing) {
-                    const existingHasVersions = Array.isArray(existing.version) && existing.version.length > 1;
-                    const newHasVersions = Array.isArray(description.allVersions) && description.allVersions.length > 1;
-
-                    // Priority check: Prefer nodes-base over nodes-langchain for same node name
-                    // This prevents sync nodes like 'openAi' from being shadowed by langchain implementations
-                    // that might not be available or primary in standard n8n
-                    const isExistingBase = existing.fullType.startsWith('n8n-nodes-base.');
-                    const isNewLangchain = fullType.startsWith('@n8n/n8n-nodes-langchain.');
-
-                    if (isExistingBase && isNewLangchain) {
-                        shouldReplace = false;
-                        if (process.env.DEBUG) console.log(`   🛡️  Keeping base node ${description.name} over langchain variant`);
-                    } else if (newHasVersions && !existingHasVersions) {
-                        shouldReplace = true;
-                    } else if (newHasVersions === existingHasVersions) {
-                        // Tie-break: one with more properties
-                        if ((description.properties?.length || 0) > (existing.properties?.length || 0)) {
-                            shouldReplace = true;
-                        }
-                    }
-                }
-
-                if (shouldReplace) {
-                    if (process.env.DEBUG && existing) {
-                        console.log(`   🔄 Replacing ${description.name} with better metadata (FullType: ${fullType})`);
-                        console.log(`      New Versions: ${JSON.stringify(description.allVersions || description.version)}`);
-                    } else if (process.env.DEBUG) {
-                        console.log(`   ➕ Adding ${description.name} (${fullType})`);
-                    }
-                    resultsMap.set(description.name, {
-                        name: description.name,
-                        fullType: fullType,
-                        displayName: description.displayName,
-                        description: description.description,
-                        icon: description.icon,
-                        group: description.group,
-                        version: description.allVersions || description.version || 1,
-                        credentials: cloneValue(description.credentials || []),
-                        properties: description.properties || [],
-                        sourcePath: fullPath.replace(ROOT_DIR, ''),
-                        usableAsTool: Boolean(description.usableAsTool)
-                    });
-                    if (!existing) successCount++;
-                } else if (process.env.DEBUG && existing) {
-                    console.log(`   ⏭️  Skipping duplicate ${description.name} from ${path.basename(fullPath)} (Existing is better)`);
+                // VERSIONING LOGIC: deduplicate by name, keeping same-name variants from
+                // different packages under their full type (see indexNodeEntry).
+                if (indexNodeEntry(resultsMap, entry)) {
+                    successCount++;
+                    if (process.env.DEBUG) console.log(`   ➕ Adding ${description.name} (${fullType})`);
+                } else if (process.env.DEBUG) {
+                    console.log(`   ⏭️  Duplicate ${description.name} from ${path.basename(fullPath)} (kept the richer entry)`);
                 }
             } else if (description) {
                 if (process.env.DEBUG) console.log(`❌ Invalid description specific data (missing name/displayName): ${path.basename(fullPath)}`);
@@ -349,14 +362,16 @@ async function extractNodes() {
             continue;
         }
 
-        const toolName = `${entry.name}Tool`;
-        if (resultsMap.has(toolName)) {
-            if (process.env.DEBUG) console.log(`   ⏭️  Virtual node ${toolName} already in index, skipping`);
+        const toolEntry = createToolVariantEntry(entry);
+        // A node that lost the short-name race is keyed by full type; its tool variant
+        // follows the same rule so it can't claim the short key from the other package.
+        const toolKey = entry.indexKey ? toolEntry.fullType : toolEntry.name;
+        if (resultsMap.has(toolKey)) {
+            if (process.env.DEBUG) console.log(`   ⏭️  Virtual node ${toolKey} already in index, skipping`);
             continue;
         }
 
-        const toolEntry = createToolVariantEntry(entry);
-        resultsMap.set(toolEntry.name, toolEntry);
+        storeEntry(resultsMap, toolKey, toolEntry);
         successCount++;
         injectedToolCount++;
         if (process.env.DEBUG) {
@@ -393,4 +408,4 @@ if (require.main === module) {
     extractNodes();
 }
 
-module.exports = { loadModule, extractDescription };
+module.exports = { loadModule, extractDescription, indexNodeEntry };

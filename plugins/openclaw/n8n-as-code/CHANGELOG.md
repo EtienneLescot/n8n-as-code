@@ -1,5 +1,11 @@
 # @n8n-as-code/n8nac
 
+## [2.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.2.0...@n8n-as-code/n8nac@v2.2.1) (2026-07-24)
+
+### Bug Fixes
+
+* **cli:** bind n8n API keys to environments instead of shared URL targets ([6dd92bc](https://github.com/EtienneLescot/n8n-as-code/commit/6dd92bc29bf8f5b63c60a5f0c1bcb7a136e3ccb9))
+
 ## [2.2.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.1.4...@n8n-as-code/n8nac@v2.2.0) (2026-06-09)
 
 ### Features

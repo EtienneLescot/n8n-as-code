@@ -198,6 +198,9 @@ jobs:
 
           cd packages/vscode-extension
           npx @vscode/vsce package --no-dependencies
+          # Activate the packaged VSIX before publishing it. Catches runtime dependencies
+          # that were built but never copied into out/node_modules (see #566).
+          npm run smoke:vsix-runtime -- "$(ls -1 *.vsix | head -n 1)"
           if npx @vscode/vsce publish --no-dependencies --pat "$VSCE_TOKEN" > vsce-publish.log 2>&1; then
             cat vsce-publish.log
           else
@@ -447,11 +450,8 @@ jobs:
           body_path: github-release-notes.md
           make_latest: true
 
-      - name: Sync next to main
-        if: steps.pending.outputs.pending == 'true'
-        run: |
-          git fetch origin main
-          git push origin HEAD:refs/heads/next --force
+      # ponytail: branch protection on next blocks force-push;
+      # sync main -> next manually after stable release when needed.
 
   create-release-pr:
     name: Create Release PR
@@ -731,6 +731,9 @@ jobs:
 
           cd packages/vscode-extension
           npx @vscode/vsce package --no-dependencies
+          # Activate the packaged VSIX before publishing it. Catches runtime dependencies
+          # that were built but never copied into out/node_modules (see #566).
+          npm run smoke:vsix-runtime -- "$(ls -1 *.vsix | head -n 1)"
           if npx @vscode/vsce publish --no-dependencies --pre-release --pat "$VSCE_TOKEN" > vsce-publish.log 2>&1; then
             cat vsce-publish.log
           else

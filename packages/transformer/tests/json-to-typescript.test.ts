@@ -440,4 +440,137 @@ export class AiTestWorkflow {
         expect(tsCode).toMatch(/AlwaysOutputNode\s+set\s+.*\[alwaysOutput\].*\[retry\]/);
         expect(tsCode).toMatch(/OnceNode\s+set\s+.*\[executeOnce\]/);
     });
+
+    it('should preserve disabled, notes, and notesInFlow through JSON → AST → TypeScript', async () => {
+        const workflowJson = {
+            id: 'wf-disabled-notes-1',
+            name: 'Disabled and Notes Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-dn-1',
+                    name: 'My Configured Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [100, 200],
+                    parameters: { mode: 'manual' },
+                    disabled: true,
+                    notes: 'important notes',
+                    notesInFlow: true,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+
+        expect(ast.nodes[0].disabled).toBe(true);
+        expect(ast.nodes[0].notes).toBe('important notes');
+        expect(ast.nodes[0].notesInFlow).toBe(true);
+
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, { format: false, commentStyle: 'minimal' });
+
+        expect(tsCode).toContain('disabled: true');
+        expect(tsCode).toContain('notes: "important notes"');
+        expect(tsCode).toContain('notesInFlow: true');
+    });
+
+    it('should preserve disabled, notes, and notesInFlow through full pull→push roundtrip', async () => {
+        const workflowJson = {
+            id: 'wf-roundtrip-disabled-notes',
+            name: 'Roundtrip Disabled Notes Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-dn-rt-1',
+                    name: 'Special Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [100, 200],
+                    parameters: { mode: 'manual' },
+                    disabled: true,
+                    notes: 'important notes with "quotes" and \\backslashes\\',
+                    notesInFlow: true,
+                },
+                {
+                    id: 'node-dn-rt-2',
+                    name: 'Normal Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [300, 200],
+                    parameters: { mode: 'manual' },
+                    disabled: false,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        // JSON → AST → TypeScript
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(workflowJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false, commentStyle: 'minimal' });
+
+        expect(tsCode).toContain('disabled: true');
+        expect(tsCode).toContain('notesInFlow: true');
+        expect(tsCode).toContain('disabled: false');
+
+        // TypeScript → AST → JSON
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+
+        // Verify AST2
+        expect(ast2.nodes[0].disabled).toBe(true);
+        expect(ast2.nodes[0].notes).toBe('important notes with "quotes" and \\backslashes\\');
+        expect(ast2.nodes[0].notesInFlow).toBe(true);
+        expect(ast2.nodes[1].disabled).toBe(false);
+        expect(ast2.nodes[1].notes).toBeUndefined();
+        expect(ast2.nodes[1].notesInFlow).toBeUndefined();
+
+        const builder = new WorkflowBuilder();
+        const rebuilt = builder.build(ast2);
+
+        // Verify rebuilt JSON
+        const node1 = rebuilt.nodes[0];
+        expect(node1.disabled).toBe(true);
+        expect(node1.notes).toBe('important notes with "quotes" and \\backslashes\\');
+        expect(node1.notesInFlow).toBe(true);
+
+        const node2 = rebuilt.nodes[1];
+        expect(node2.disabled).toBe(false);
+        expect(node2.notes).toBeUndefined();
+        expect(node2.notesInFlow).toBeUndefined();
+    });
+
+    it('should emit [disabled] flag in workflow-map for disabled nodes', async () => {
+        const workflowJson = {
+            id: 'wf-flags-disabled',
+            name: 'Disabled Flags Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-disabled-1',
+                    name: 'Inactive Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [0, 0],
+                    parameters: {},
+                    disabled: true,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, { format: false });
+
+        expect(tsCode).toMatch(/InactiveNode\s+set\s+.*\[disabled\]/);
+    });
 });

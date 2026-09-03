@@ -11,6 +11,7 @@ jobs:
     environment: next
     permissions:
       contents: write
+      pull-requests: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
       N8N_HOST: ${{ vars.N8N_HOST }}
@@ -66,15 +67,18 @@ jobs:
         if: env.N8N_HOST != '' && env.N8N_API_KEY != ''
         run: npm test
 
-      - name: Commit and push n8n version update
+      - name: Create PR for n8n version update
         if: steps.n8n-update-check.outputs.changed == 'true'
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/skills/package.json
-          if git diff --cached --quiet; then
-            echo "ℹ️  No tracked n8n version changes detected after rebuild, skipping commit."
-          else
-            git commit -m "fix(skills): update knowledge base for n8n@${{ steps.n8n-update-check.outputs.n8n_version }}"
-            git push
-          fi
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: nightly/n8n-version-update
+          delete-branch: true
+          commit-message: "fix(skills): update knowledge base for n8n@${{ steps.n8n-update-check.outputs.n8n_version }}"
+          title: "fix(skills): update knowledge base for n8n@${{ steps.n8n-update-check.outputs.n8n_version }}"
+          body: |
+            Automated n8n version bump from the nightly cloud regression run.
+            Merge to rebuild the skills knowledge base against the latest n8n release.
+          base: main
+          add-paths: packages/skills/package.json
+          labels: automated, n8n-update

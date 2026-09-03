@@ -1,5 +1,29 @@
 # @n8n-as-code/skills
 
+## [2.3.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.1...@n8n-as-code/skills@v2.3.2) (2026-07-24)
+
+### Bug Fixes
+
+* **cli:** bind n8n API keys to environments instead of shared URL targets ([6dd92bc](https://github.com/EtienneLescot/n8n-as-code/commit/6dd92bc29bf8f5b63c60a5f0c1bcb7a136e3ccb9))
+* **skills:** update knowledge base for n8n@2.31.5 ([fd6a920](https://github.com/EtienneLescot/n8n-as-code/commit/fd6a920ed28920a4a694474a63d262e949f0156f))
+* **scripts:** pass CI through the environment so builds work on Windows ([46d2b67](https://github.com/EtienneLescot/n8n-as-code/commit/46d2b67a9a0fad1f7fc819bf1472388403cea2f9))
+* **scripts:** correct doc index lookup, slug safety and cache validation ([5fc999b](https://github.com/EtienneLescot/n8n-as-code/commit/5fc999bed46b91bd00e934c1deb23411fe630494))
+
+## [2.3.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.0...@n8n-as-code/skills@v2.3.1) (2026-07-15)
+
+### Bug Fixes
+
+* **skills:** update knowledge base for n8n@2.30.4 ([14fc493](https://github.com/EtienneLescot/n8n-as-code/commit/14fc49367230e9783101c2d361dea19ff05f5ad7))
+* **skills:** update knowledge base for n8n@2.29.8 ([900abb1](https://github.com/EtienneLescot/n8n-as-code/commit/900abb12fbc565284b64cb56598ecf1bb79037c9))
+* **skills:** update knowledge base for n8n@2.28.4 ([3f651b5](https://github.com/EtienneLescot/n8n-as-code/commit/3f651b5206d05a6659ace0eb1794194a10ab49df))
+* **skills:** restore docs categorization against current docs.n8n.io llms.txt ([409dc65](https://github.com/EtienneLescot/n8n-as-code/commit/409dc65e2dafa75e868dad1b0411ffab30740af1))
+* **skills:** update knowledge base for n8n@2.27.3 ([6194147](https://github.com/EtienneLescot/n8n-as-code/commit/6194147543101d65bd2857441fe9a8782a44706e))
+* **skills:** update knowledge base for n8n@2.26.9 ([fa5a831](https://github.com/EtienneLescot/n8n-as-code/commit/fa5a8319b3b88a3a6a2b163d518b094e4071f8d2))
+* **skills:** update knowledge base for n8n@2.26.8 ([7725434](https://github.com/EtienneLescot/n8n-as-code/commit/7725434eb790cab627f522b7f88b9bf10a2ef115))
+* **skills:** update knowledge base for n8n@2.26.7 ([361d098](https://github.com/EtienneLescot/n8n-as-code/commit/361d09817acc1fb184f7d47ceff0281c5acd113b))
+* **skills:** update knowledge base for n8n@2.26.6 ([1bb83ea](https://github.com/EtienneLescot/n8n-as-code/commit/1bb83eaa96e1f7440c5e0996f328e8e27baf0c91))
+* **skills:** update knowledge base for n8n@2.26.4 ([3a82455](https://github.com/EtienneLescot/n8n-as-code/commit/3a82455836c76ea961b60e5af542131fe5e7b232))
+
 ## [2.3.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.2.6...@n8n-as-code/skills@v2.3.0) (2026-06-09)
 
 ### Features

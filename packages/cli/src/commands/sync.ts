@@ -1,5 +1,5 @@
-import { BaseCommand } from './base.js';
-import { SyncManager, WorkflowSyncStatus } from '../core/index.js';
+import { BaseCommand, captureEmittedErrors, formatConnectionError } from './base.js';
+import { SyncManager, WorkflowSyncStatus, type IPushPublishReport } from '../core/index.js';
 import { WorkflowValidator } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -10,6 +10,7 @@ export class SyncCommand extends BaseCommand {
     async pullOne(workflowId: string): Promise<void> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
+        const lastEmittedError = captureEmittedErrors(syncManager);
 
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
@@ -17,7 +18,13 @@ export class SyncCommand extends BaseCommand {
         // Fetch ensures initialization, remote knowledge, and filename mapping
         const remoteExists = await syncManager.fetch(workflowId);
         if (!remoteExists) {
-            console.error(chalk.red(`❌ Workflow ${workflowId} not found on remote.`));
+            // A falsy result means "absent" OR "the request failed"; only the emitted error
+            // tells them apart, and reporting a TLS failure as a missing workflow sends the
+            // user hunting for the wrong problem.
+            const emitted = lastEmittedError();
+            console.error(chalk.red(emitted
+                ? `❌ ${formatConnectionError(`Cannot reach workflow ${workflowId}`, emitted)}`
+                : `❌ Workflow ${workflowId} not found on remote.`));
             process.exit(1);
         }
 
@@ -32,7 +39,7 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return;
+                process.exit(1);
             }
         }
 
@@ -41,14 +48,15 @@ export class SyncCommand extends BaseCommand {
             await syncManager.pull(workflowId);
             spinner.succeed(chalk.green(`✔ Pulled workflow ${workflowId}.`));
         } catch (e: any) {
-            spinner.fail(`Pull failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Pull failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }
 
-    async pushOne(filename: string): Promise<string | undefined> {
+    async pushOne(filename: string, options?: { draft?: boolean }): Promise<string | undefined> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
+        const lastEmittedError = captureEmittedErrors(syncManager);
 
         // Populate local hash cache FIRST — required for accurate status in CLI mode
         await syncManager.refreshLocalState();
@@ -80,14 +88,26 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`To resolve the conflict you can either:`));
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                return undefined;
+                process.exit(1);
             }
         }
 
         const spinner = ora(`Pushing workflow ${filename}...`).start();
+
+        // The engine emits this before the update lands, so the "this goes live"
+        // notice is printed while it is still news rather than after the fact.
+        let publishReport: IPushPublishReport | undefined;
+        syncManager.on('publishState', (report: IPushPublishReport) => {
+            publishReport = report;
+            if (report.outcome !== 'goes-live') return;
+            spinner.info(chalk.yellow(`⚠  "${filename}" is published — this push releases it to production.`));
+            spinner.start(`Pushing workflow ${filename}...`);
+        });
+
         try {
-            const finalWorkflowId = await syncManager.push(filename);
+            const finalWorkflowId = await syncManager.push(filename, { draft: options?.draft === true });
             spinner.succeed(chalk.green(`✔ Pushed workflow ${filename}.`));
+            this.reportPublishState(publishReport, finalWorkflowId);
             return finalWorkflowId;
         } catch (e: any) {
             if (e.message.includes('modified in the n8n UI')) {
@@ -97,8 +117,8 @@ export class SyncCommand extends BaseCommand {
                 if (workflowId) {
                     console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                     console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
-                    return undefined;
                 }
+                process.exit(1);
             }
             if (e.message.includes('archived on n8n') || e.message.includes('isArchived')) {
                 spinner.stop();
@@ -106,27 +126,61 @@ export class SyncCommand extends BaseCommand {
                 console.log(chalk.yellow(`Archived workflows cannot receive updates via the API.`));
                 process.exit(1);
             }
-            spinner.fail(`Push failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Push failed', lastEmittedError() ?? e));
             process.exit(1);
+        }
+    }
+
+    /**
+     * States what the push did to production, once it is done.
+     *
+     * `goes-live` is absent on purpose: it was already announced before the
+     * update, which is the only moment where saying it is useful.
+     */
+    private reportPublishState(report: IPushPublishReport | undefined, workflowId: string | undefined): void {
+        switch (report?.outcome) {
+            case 'restores':
+                console.log(chalk.dim(`📝 Draft updated — production still runs version ${report.versionId}.`));
+                console.log(chalk.dim(`   Release it by pushing again without --draft.`));
+                break;
+            case 'not-published':
+                console.log(chalk.dim(`📝 This workflow is not published, so nothing changed in production.`));
+                break;
+            case 'unknown':
+                console.log(chalk.yellow(`⚠  Could not read the published version before pushing.`));
+                console.log(chalk.yellow(`   If this workflow was published, production now runs the pushed content.`));
+                if (workflowId) console.log(chalk.dim(`   Check its version history in the n8n UI (workflow ${workflowId}).`));
+                break;
         }
     }
 
     async fetchOne(workflowId: string): Promise<void> {
         const spinner = ora(`Fetching remote state for workflow ${workflowId}...`).start();
+        // Declared out here so the catch below can still reach it.
+        let lastEmittedError: () => Error | undefined = () => undefined;
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
-            
+            lastEmittedError = captureEmittedErrors(syncManager);
+
             // Fetch remote state for this specific workflow (updates internal cache)
             const success = await syncManager.fetch(workflowId);
             if (!success) {
+                // `fetch` returns false both for a genuinely absent workflow and for a failed
+                // request, so report the emitted cause when there was one — otherwise a TLS or
+                // transport failure is announced as a missing workflow.
+                const emitted = lastEmittedError();
+                if (emitted) {
+                    spinner.fail(formatConnectionError(`Failed to fetch workflow ${workflowId}`, emitted));
+                    process.exit(1);
+                }
                 spinner.fail(`Workflow ${workflowId} not found on remote.`);
                 process.exit(1);
             }
             
             spinner.succeed(chalk.green(`✔ Fetched remote state for workflow ${workflowId}.`));
         } catch (e: any) {
-            spinner.fail(`Fetch failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Fetch failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }
@@ -134,9 +188,12 @@ export class SyncCommand extends BaseCommand {
     async resolveOne(workflowId: string, resolution: 'keep-current' | 'keep-incoming'): Promise<void> {
         const resLabel = resolution === 'keep-current' ? 'current (local)' : 'incoming (remote)';
         const spinner = ora(`Resolving conflict for ${workflowId} (keeping ${resLabel})...`).start();
+        // Declared out here so the catch below can still reach it.
+        let lastEmittedError: () => Error | undefined = () => undefined;
         try {
             const syncConfig = await this.getSyncConfig();
             const syncManager = new SyncManager(this.client, syncConfig);
+            lastEmittedError = captureEmittedErrors(syncManager);
 
             // Populate local hash cache and remote state
             await syncManager.refreshLocalState();
@@ -155,7 +212,7 @@ export class SyncCommand extends BaseCommand {
             await syncManager.resolveConflict(workflowId, filename, mode);
             spinner.succeed(chalk.green(`✔ Conflict resolved for ${workflowId} (kept ${resLabel}).`));
         } catch (e: any) {
-            spinner.fail(`Resolution failed: ${e.message}`);
+            spinner.fail(formatConnectionError('Resolution failed', lastEmittedError() ?? e));
             process.exit(1);
         }
     }

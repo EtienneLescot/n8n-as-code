@@ -85,10 +85,15 @@ export class CliApi {
      *  • Local-only with ID (remote deleted) → re-creates on remote
      *  • Both sides exist                    → updates remote (with OCC check)
      *
+    * On n8n 2.x, pushing to a published workflow also releases the pushed
+    * content. Set `options.draft` to restore the previously published version
+    * afterwards, mirroring `n8nac push --draft`.
+    *
     * @param filename - Workflow path or basename inside the active sync scope
+    * @param options.draft - Keep production on the version it already ran
      */
-    async push(filename: string): Promise<string> {
-        return this.syncManager.push(filename);
+    async push(filename: string, options?: { draft?: boolean }): Promise<string> {
+        return this.syncManager.push(filename, options);
     }
 
     // ── conflict resolution (extension-only, no CLI equivalent) ──────────────

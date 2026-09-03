@@ -250,7 +250,13 @@ path, the selected custom nodes file, and the merged node counts. If you're chec
 custom node, `npx n8nac skills node-info <nodeName> --debug` is the most direct verification.
 
 A minimal schema (`"properties": []`) is enough to suppress errors and skip parameter
-validation. Full property definitions enable parameter validation just like official nodes.
+validation: with no declared properties the validator has nothing to check parameters
+against, so it reports neither missing nor unknown ones. Full property definitions enable
+parameter validation just like official nodes.
+
+Entries may be keyed by short name (`code`) or by full type
+(`@n8n/n8n-nodes-langchain.code`). Use the full type when two packages share a short name,
+so the override applies to that node only.
 
 ### Non-default path
 

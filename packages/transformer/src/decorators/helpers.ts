@@ -30,22 +30,18 @@ export function createNodeProxy(propertyName: string): NodeProxy {
         },
         
         uses(dependencies: AIDependencyMap): void {
-            // Extract property names from dependency objects
+            // Extract property names from dependency objects.
+            // Arrays are kept as arrays: position = target input index for single
+            // roles, plain fan-in for ai_tool / ai_document.
             const deps: any = {};
-            
-            if (dependencies.ai_languageModel) {
-                deps.ai_languageModel = extractPropertyName(dependencies.ai_languageModel.output);
+
+            for (const [role, ref] of Object.entries(dependencies)) {
+                if (!ref) continue;
+                deps[role] = Array.isArray(ref)
+                    ? ref.map(r => (r ? extractPropertyName(r.output) : ''))
+                    : extractPropertyName((ref as { output: any }).output);
             }
-            if (dependencies.ai_memory) {
-                deps.ai_memory = extractPropertyName(dependencies.ai_memory.output);
-            }
-            if (dependencies.ai_outputParser) {
-                deps.ai_outputParser = extractPropertyName(dependencies.ai_outputParser.output);
-            }
-            if (dependencies.ai_tool) {
-                deps.ai_tool = dependencies.ai_tool.map(t => extractPropertyName(t.output));
-            }
-            
+
             connectionTracker.addAIDependencies(propertyName, deps);
         }
     };

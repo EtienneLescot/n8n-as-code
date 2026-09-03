@@ -149,6 +149,70 @@ describe('WorkflowValidator', () => {
             w.message.includes('@tavily/n8n-nodes-tavily.tavily')
         )).toBe(true);
     });
+
+    it('does not flag parameters when the schema declares no properties', async () => {
+        // A schema with an empty property list carries no information about what is known —
+        // that is how a custom-node override opts out of parameter validation.
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Start',
+                    type: 'n8n-nodes-base.start',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: { whatever: true }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.filter(w => w.message.includes('Unknown parameter'))).toEqual([]);
+    });
+
+    // Regression: the validator used to truncate node.type to its last dot-segment, so
+    // "@n8n/n8n-nodes-langchain.code" was validated against "n8n-nodes-base.code".
+    it('validates a LangChain node against its own schema when a base node shares the short name', async () => {
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'LLM',
+                    type: '@n8n/n8n-nodes-langchain.code',
+                    typeVersion: 1,
+                    position: [0, 0],
+                    parameters: { code: {}, inputs: {}, outputs: {} }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.filter(w => w.message.includes('Unknown parameter'))).toEqual([]);
+    });
+
+    it('still resolves the base node for its own full type', async () => {
+        const workflow = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Code',
+                    type: 'n8n-nodes-base.code',
+                    typeVersion: 2,
+                    position: [0, 0],
+                    parameters: { mode: 'runOnceForAllItems', jsCode: 'return items;' }
+                }
+            ],
+            connections: {}
+        };
+
+        const result = await validator.validateWorkflow(workflow);
+        expect(result.valid).toBe(true);
+        expect(result.warnings.filter(w => w.message.includes('Unknown parameter'))).toEqual([]);
+    });
 });
 
 describe('WorkflowValidator - custom nodes', () => {
@@ -239,6 +303,35 @@ describe('WorkflowValidator - custom nodes', () => {
         expect(result.valid).toBe(true);
         expect(result.errors.length).toBe(0);
         expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(true);
+    });
+
+    // Regression: `n8nac push --verify` builds the validator without paths, which used to
+    // ignore the sidecar entirely.
+    it('resolves the sidecar from the project directory when no path is passed', async () => {
+        const previousCwd = process.cwd();
+        process.chdir(tempDir);
+        try {
+            const validator = new WorkflowValidator(indexPath);
+            const workflow = {
+                nodes: [
+                    {
+                        id: '1',
+                        name: 'MyCustom',
+                        type: 'n8n-nodes-custom.myCustomNode',
+                        typeVersion: 1,
+                        position: [0, 0],
+                        parameters: { endpoint: 'https://api.example.com' }
+                    }
+                ],
+                connections: {}
+            };
+
+            const result = await validator.validateWorkflow(workflow);
+            expect(result.errors.length).toBe(0);
+            expect(result.warnings.some(w => w.message.includes('not in the schema'))).toBe(false);
+        } finally {
+            process.chdir(previousCwd);
+        }
     });
 
     it('should validate required parameters from custom node schema', async () => {
@@ -538,5 +631,78 @@ describe('WorkflowValidator - nested parameter validation', () => {
         expect(result.valid).toBe(false);
         expect(result.errors).toHaveLength(1);
         expect(result.errors[0].path).toBe('nodes[Switch].parameters.rules.values[1].outputKey');
+    });
+});
+
+describe('WorkflowValidator - fallback model', () => {
+    const createValidator = (): WorkflowValidator => {
+        const indexPath = path.resolve(_dirname, 'fixtures/n8n-nodes-technical.json');
+        const validator = new WorkflowValidator(indexPath);
+        // Schema lookup is irrelevant here: the rule reads parameters + connections
+        jest.spyOn(validator['provider'], 'getNodeSchema').mockReturnValue({
+            name: 'chainLlm',
+            type: '@n8n/n8n-nodes-langchain.chainLlm',
+            version: 1.7,
+            schema: { properties: [] },
+        } as any);
+        return validator;
+    };
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    const workflowWithFallback = (connections: any) => ({
+        nodes: [
+            { id: '1', name: 'Classify', type: '@n8n/n8n-nodes-langchain.chainLlm', typeVersion: 1.7, position: [0, 0], parameters: { needsFallback: true } },
+            { id: '2', name: 'Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.7, position: [0, 200], parameters: {} },
+            { id: '3', name: 'Fallback Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.7, position: [200, 200], parameters: {} },
+        ],
+        connections,
+    });
+
+    const aiConn = (index: number) => ({ ai_languageModel: [[{ node: 'Classify', type: 'ai_languageModel', index }]] });
+
+    it('rejects needsFallback: true without a model on input 1', async () => {
+        const result = await createValidator().validateWorkflow(workflowWithFallback({ 'Model': aiConn(0) }));
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(true);
+    });
+
+    it('accepts needsFallback: true when a fallback model is wired to input 1', async () => {
+        const result = await createValidator().validateWorkflow(
+            workflowWithFallback({ 'Model': aiConn(0), 'Fallback Model': aiConn(1) })
+        );
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(false);
+        expect(result.valid).toBe(true);
+    });
+
+    it('rejects needsFallback: true when the fallback model is disabled', async () => {
+        const workflow = workflowWithFallback({ 'Model': aiConn(0), 'Fallback Model': aiConn(1) });
+        workflow.nodes[2].disabled = true;
+        const result = await createValidator().validateWorkflow(workflow);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(true);
+    });
+
+    it('reports malformed ai_languageModel connections even with a valid fallback slot', async () => {
+        const result = await createValidator().validateWorkflow(
+            workflowWithFallback({
+                'Model': { ai_languageModel: [[{ node: 'Classify', type: 'ai_languageModel', index: 0 }], 'not-an-array'] },
+                'Fallback Model': aiConn(1),
+            })
+        );
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('Malformed ai_languageModel connection group'))).toBe(true);
+        // The fallback slot itself is valid, so the needsFallback rule must not fire.
+        expect(result.errors.some(e => e.message.includes('needsFallback'))).toBe(false);
+    });
+
+    it('reports ai_languageModel connections with an invalid node field', async () => {
+        const result = await createValidator().validateWorkflow(
+            workflowWithFallback({ 'Model': { ai_languageModel: [[{ type: 'ai_languageModel', index: 0 }]] }, 'Fallback Model': aiConn(1) })
+        );
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.message.includes('Malformed ai_languageModel connection on node "Model"'))).toBe(true);
     });
 });

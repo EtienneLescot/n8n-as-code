@@ -5,7 +5,8 @@ import { WorkflowTransformerAdapter } from './workflow-transformer-adapter.js';
 import { HashUtils } from './hash-utils.js';
 import { WorkflowStateTracker } from './workflow-state-tracker.js';
 import { SyncEventJournal } from './sync-event-journal.js';
-import { WorkflowSyncStatus, IWorkflow } from '../types.js';
+import { WorkflowSyncStatus, IWorkflow, IFolder, IPublishedVersion, IPushPublishReport } from '../types.js';
+import { ensureParentDirectory, normalizeWorkflowRelativePath, workflowRelativePathToAbsolute } from './workflow-path-utils.js';
 
 /**
  * Sync Engine - State Mutation Component
@@ -23,6 +24,23 @@ export class SyncEngine {
     private directory: string;
     private projectId: string;
     private syncEventJournal: SyncEventJournal | undefined;
+    private folderSync: boolean;
+    /**
+     * In-flight `createFolder` requests, keyed by
+     * `${projectId}::${parentFolderId ?? ''}::${name}`.
+     *
+     * Multiple concurrent `push()` calls that need the same parent folder
+     * (e.g. `AI Chat/x.workflow.ts` and `AI Chat/y.workflow.ts`) deduplicate
+     * their `createFolder` round-trips through this map so we never POST
+     * twice for the same folder — even if two invocations interleave after
+     * `getFolders` returns an empty array.
+     */
+    private inFlightFolderCreates: Map<string, Promise<IFolder>> = new Map();
+    private folderSyncMoveToRoot: boolean;
+    /** Guards the "folders unavailable" warning so a bulk push logs it once. */
+    private folderUnavailableWarned = false;
+    /** Reports what each update did to the published version, for the CLI to surface. */
+    private onPublishState: ((report: IPushPublishReport) => void) | undefined;
 
     constructor(
         client: N8nApiClient,
@@ -30,12 +48,20 @@ export class SyncEngine {
         directory: string,
         projectId: string,
         syncEventJournal?: SyncEventJournal,
+        options?: {
+            folderSync?: boolean;
+            folderSyncMoveToRoot?: boolean;
+            onPublishState?: (report: IPushPublishReport) => void;
+        },
     ) {
         this.client = client;
         this.watcher = watcher;
         this.directory = directory;
         this.projectId = projectId;
         this.syncEventJournal = syncEventJournal;
+        this.folderSync = options?.folderSync ?? false;
+        this.folderSyncMoveToRoot = options?.folderSyncMoveToRoot ?? false;
+        this.onPublishState = options?.onPublishState;
     }
 
     /**
@@ -70,14 +96,19 @@ export class SyncEngine {
      * PUSH Strategy: Local -> Remote
      * Based on spec 5.3 PUSH Strategy table
      */
-    public async push(filename: string, workflowId?: string, status?: WorkflowSyncStatus): Promise<string> {
+    public async push(
+        filename: string,
+        workflowId?: string,
+        status?: WorkflowSyncStatus,
+        options?: { draft?: boolean },
+    ): Promise<string> {
         // If we have an ID, we ALWAYS try to update first (robustness for git-like sync)
             if (workflowId) {
                 try {
                     // PUT to API (Update)
                     // We bypass OCC check if the status is EXIST_ONLY_LOCALLY (meaning we think it's new but it might not be)
                     const skipOcc = status === WorkflowSyncStatus.EXIST_ONLY_LOCALLY;
-                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename, skipOcc);
+                    const updateUpdatedAt = await this.executeUpdate(workflowId, filename, skipOcc, options?.draft === true);
                     
                     // Update lastSyncedHash via finalizeSync
                     await this.watcher.finalizeSync(workflowId, updateUpdatedAt);
@@ -94,8 +125,10 @@ export class SyncEngine {
             }
 
             // No ID or Update failed with 404 -> POST to API (Create)
+            // n8n creates workflows unpublished, so a create never touches
+            // production and `--draft` has nothing to protect here.
             const { id: newWorkflowId, updatedAt } = await this.executeCreate(filename);
-            
+
             // Initialize lastSyncedHash via finalizeSync
             await this.watcher.finalizeSync(newWorkflowId, updatedAt);
             this.recordPushSuccess(newWorkflowId, filename, updatedAt);
@@ -164,7 +197,8 @@ export class SyncEngine {
             commentStyle: 'verbose'
         });
         
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache since we just fetched the workflow
@@ -176,8 +210,25 @@ export class SyncEngine {
         return fullWf.updatedAt;
     }
 
-    private async executeUpdate(workflowId: string, filename: string, skipOcc = false): Promise<string | undefined> {
-        const filePath = path.join(this.directory, filename);
+    /**
+     * PUT the local workflow to n8n.
+     *
+     * On n8n 2.x a workflow is a draft (the content) plus a pointer to the
+     * version production runs. `PUT /workflows/:id` rewrites the draft *and*
+     * moves the pointer when the workflow is published, with no opt-out — so on
+     * a published workflow a push is a save *and* a publish.
+     *
+     * That stays the default: `push` is a deploy command, and the API is not
+     * worked around behind the user's back. It is announced before the update
+     * lands, through `onPublishState`.
+     *
+     * `draft` opts into the workaround: capture the pointer, PUT, re-pin. It is
+     * a compensating call, not an atomic one — between the two the pushed
+     * content is briefly live — which is why it is opt-in rather than the path
+     * everyone silently depends on.
+     */
+    private async executeUpdate(workflowId: string, filename: string, skipOcc = false, draft = false): Promise<string | undefined> {
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during push');
@@ -212,7 +263,35 @@ export class SyncEngine {
             );
         }
 
-        const updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        // Folder-aware move: when folderSync is enabled and `filename` lives under a
+        // nested folder path, mirror the create-path logic and forward parentFolderId
+        // to n8n so the existing workflow actually moves to that folder on update.
+        // Mirrors inferParentFolderIdFromFilename() usage in executeCreate().
+        const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
+        // `null` is meaningful here (move to project root), so only skip on undefined.
+        if (inferredParentFolderId !== undefined) {
+            localWf.parentFolderId = inferredParentFolderId;
+        }
+
+        // Read the published version *before* the PUT — afterwards it already
+        // points at the content we are about to send, and the warning would come
+        // too late to be one.
+        const published = await this.capturePublishedVersion(workflowId);
+        const outcome = this.announcePublishIntent(workflowId, filename, draft, published);
+
+        let updatedWf: IWorkflow;
+        try {
+            updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        } catch (error: any) {
+            // Retry without parentFolderId when n8n rejects it as an unknown field.
+            // Workflow placement via the public API only exists from n8n 2.32; older
+            // instances 400 on the field. Same fallback used by executeCreate().
+            if (localWf.parentFolderId === undefined || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while updating "${filename}" (folder placement needs n8n 2.32+); retrying without folder assignment.`);
+            // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
+            delete localWf.parentFolderId;
+            updatedWf = await this.client.updateWorkflow(workflowId, localWf);
+        }
 
         if (!updatedWf?.id || updatedWf.id !== workflowId || !Array.isArray(updatedWf.nodes)) {
             throw new Error('Failed to update remote workflow: n8n did not return an updated workflow payload');
@@ -229,19 +308,139 @@ export class SyncEngine {
         }
 
         // CRITICAL: Write the API response back to local file to ensure consistency
-        // This ensures local and remote have identical content after push
-        // Convert the updated workflow back to TypeScript
+        // This ensures local and remote have identical content after push.
+        // It happens BEFORE the restore attempt below: the PUT already changed
+        // the remote, so local must reflect it even when the re-pin fails.
         const tsCode = await WorkflowTransformerAdapter.convertToTypeScript(updatedWf, {
             format: true,
             commentStyle: 'verbose'
         });
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         // Update Watcher's remote hash cache with the updated workflow
         const hash = await WorkflowTransformerAdapter.hashWorkflow(tsCode);
         this.watcher.setRemoteHash(workflowId, hash);
-        
-        return updatedWf.updatedAt;
+
+        if (outcome !== 'restores') {
+            return updatedWf.updatedAt;
+        }
+
+        try {
+            return await this.restorePublishedVersion(workflowId, filename, published!.versionId!, updatedWf);
+        } catch (error) {
+            // The loud failure above stops the regular finalize path, yet the
+            // remote did move (our own PUT). Advance the sync base here so the
+            // next push does not false-conflict against its own update.
+            await this.watcher.finalizeSync(workflowId, updatedWf.updatedAt);
+            throw error;
+        }
+    }
+
+    /**
+     * Says what this push is about to do to production, before it does it.
+     *
+     * `--draft` on a workflow whose published version cannot be read or re-pinned
+     * throws here rather than pushing: the user asked for a guarantee, nothing
+     * has happened yet, and silently doing the opposite is the worst option.
+     */
+    private announcePublishIntent(
+        workflowId: string,
+        filename: string,
+        draft: boolean,
+        published: IPublishedVersion | undefined,
+    ): IPushPublishReport['outcome'] {
+        const outcome = ((): IPushPublishReport['outcome'] => {
+            if (!published) {
+                if (draft) {
+                    throw new Error(
+                        `Refusing to push "${filename}" with --draft: the published version could not be read, ` +
+                        `so it could not be restored either. Retry, or push without --draft to release the change.`
+                    );
+                }
+                return 'unknown';
+            }
+
+            // Nothing runs in production, so the update releases nothing.
+            if (!published.published) return 'not-published';
+
+            if (!draft) return 'goes-live';
+
+            // n8n 1.x: no version pointer, the workflow content *is* what runs.
+            if (!published.versionId) {
+                throw new Error(
+                    `Refusing to push "${filename}" with --draft: this n8n instance exposes no published-version ` +
+                    `pointer (n8n 1.x), where an active workflow runs the content it holds. There is nothing to ` +
+                    `restore, so the push would go live. Unpublish the workflow first, or push without --draft.`
+                );
+            }
+            return 'restores';
+        })();
+
+        try {
+            this.onPublishState?.({ workflowId, filename, outcome, versionId: published?.versionId });
+        } catch (error: any) {
+            console.warn(`[SyncEngine] Publish-state listener threw: ${error?.message || error}`);
+        }
+        return outcome;
+    }
+
+    /**
+     * Reads the published version before an update, tolerating failure.
+     *
+     * A pointer we cannot read is a pointer we cannot restore, but refusing the
+     * push over a failed GET helps nobody — the PUT that follows would fail on
+     * the same transport. The push proceeds and reports `unknown` instead.
+     */
+    private async capturePublishedVersion(workflowId: string): Promise<IPublishedVersion | undefined> {
+        try {
+            return await this.client.getPublishedVersion(workflowId);
+        } catch (error: any) {
+            console.warn(
+                `[SyncEngine] Could not read the published version of ${workflowId} ` +
+                `(${error?.message || error}). This push may change what runs in production.`
+            );
+            return undefined;
+        }
+    }
+
+    /**
+     * Puts the published version back where the PUT moved it from.
+     *
+     * Returns the `updatedAt` to record as the sync base. Re-pinning a version
+     * touches the workflow again, so the timestamp from the PUT response is
+     * already stale by then — keeping it would make the next push think someone
+     * edited the workflow in the n8n UI.
+     */
+    private async restorePublishedVersion(
+        workflowId: string,
+        filename: string,
+        versionId: string,
+        updatedWf: IWorkflow,
+    ): Promise<string | undefined> {
+        try {
+            const restored = await this.client.publishWorkflowVersion(workflowId, versionId);
+            return restored?.updatedAt ?? (await this.readRemoteUpdatedAt(workflowId)) ?? updatedWf.updatedAt;
+        } catch (error: any) {
+            throw new Error(
+                `Pushed "${filename}", but failed to restore the published version ${versionId}: ` +
+                `${error?.message || error}. n8n re-publishes on update, so the content you just pushed is ` +
+                `now live in production. Re-publish version ${versionId} from the n8n UI to roll back, ` +
+                `or drop --draft if the new version is what you want live.`
+            );
+        }
+    }
+
+    /** Best-effort re-read of `updatedAt` when the activate response omits it. */
+    private async readRemoteUpdatedAt(workflowId: string): Promise<string | undefined> {
+        try {
+            const wf = await this.client.getWorkflow(workflowId);
+            return wf?.updatedAt;
+        } catch {
+            // The sync base stays on the PUT timestamp; the next push falls back
+            // to the normal conflict prompt rather than failing here.
+            return undefined;
+        }
     }
 
     private recordPushSuccess(workflowId: string, filename: string, remoteUpdatedAt?: string): void {
@@ -260,7 +459,7 @@ export class SyncEngine {
     }
 
     private async executeCreate(filename: string): Promise<{ id: string, updatedAt?: string }> {
-        const filePath = path.join(this.directory, filename);
+        const filePath = workflowRelativePathToAbsolute(this.directory, filename);
         const tsContent = this.readTypeScriptFile(filePath);
         if (!tsContent) {
             throw new Error('Local file not found during creation');
@@ -287,7 +486,22 @@ export class SyncEngine {
             localWf.projectId = this.projectId;
         }
 
-        const newWf = await this.client.createWorkflow(localWf);
+        const inferredParentFolderId = await this.inferParentFolderIdFromFilename(filename);
+        // `null` is meaningful here (create at project root), so only skip on undefined.
+        if (inferredParentFolderId !== undefined) {
+            localWf.parentFolderId = inferredParentFolderId;
+        }
+
+        let newWf: IWorkflow;
+        try {
+            newWf = await this.client.createWorkflow(localWf);
+        } catch (error: any) {
+            if (localWf.parentFolderId === undefined || !this.isUnsupportedParentFolderError(error)) throw error;
+            console.warn(`[SyncEngine] n8n rejected parentFolderId while creating "${filename}" (folder placement needs n8n 2.32+); retrying without folder assignment.`);
+            // parentFolderId is a known IWorkflow field; strip it without an `any` cast.
+            delete localWf.parentFolderId;
+            newWf = await this.client.createWorkflow(localWf);
+        }
         if (!newWf || !newWf.id) {
             throw new Error('Failed to create remote workflow');
         }
@@ -298,9 +512,157 @@ export class SyncEngine {
             format: true,
             commentStyle: 'verbose'
         });
+        ensureParentDirectory(filePath);
         fs.writeFileSync(filePath, tsCode, 'utf-8');
 
         return { id: newWf.id, updatedAt: newWf.updatedAt };
+    }
+
+    /**
+     * Maps a workflow-relative filename to the n8n folder it should live in.
+     *
+     * Three distinct outcomes, matching n8n's own `parentFolderId` semantics:
+     * - `string`   — put the workflow in that folder (creating folders as needed)
+     * - `null`     — move it to the project root (only when folderSyncMoveToRoot is on)
+     * - `undefined` — say nothing, leave the workflow where n8n has it
+     */
+    private async inferParentFolderIdFromFilename(filename: string): Promise<string | null | undefined> {
+        if (!this.folderSync) return undefined;
+        const normalized = normalizeWorkflowRelativePath(filename);
+        const segments = normalized.split('/');
+        if (segments.length <= 1) {
+            // Flat local path. Only claim the project root when the repository is
+            // configured as the source of truth, otherwise a push would silently
+            // undo folders someone created in the n8n UI.
+            return this.folderSyncMoveToRoot ? null : undefined;
+        }
+
+        // Soft capability check: N8nApiClient exposes these methods, but mocks in
+        // unit tests may not. Skip folder inference gracefully rather than throw.
+        if (typeof this.client.getFolders !== 'function' || typeof this.client.createFolder !== 'function') {
+            return undefined;
+        }
+
+        // `GET /projects/:id/folders` needs a real project id: it does not accept the
+        // `personal` alias that folder creation does, and `GET /api/v1/projects` is
+        // Enterprise-gated. resolveFolderProjectId() reads it off a workflow instead.
+        const projectId = typeof this.client.resolveFolderProjectId === 'function'
+            ? await this.client.resolveFolderProjectId(this.projectId)
+            : (this.projectId && this.projectId !== 'personal' ? this.projectId : null);
+        if (!projectId) {
+            this.warnFoldersUnavailable('could not determine which n8n project this instance syncs to');
+            return undefined;
+        }
+
+        const folderSegments = segments.slice(0, -1);
+        let folders: IFolder[];
+        try {
+            folders = await this.client.getFolders(projectId);
+        } catch (error: any) {
+            // 403 = the instance has no `feat:folders` licence (an unregistered
+            // Community instance); 404 = n8n predates the folder endpoints.
+            // Neither is a reason to fail the push — place the workflow flat.
+            if (![403, 404].includes(error?.response?.status)) throw error;
+            this.warnFoldersUnavailable(
+                error?.response?.status === 403
+                    ? 'the n8n instance reports no folder support (register the Community instance to unlock folders)'
+                    : 'this n8n version has no folder API (needs n8n 2.19+, and 2.32+ to place workflows)'
+            );
+            return undefined;
+        }
+
+        let parentFolderId: string | null = null;
+        for (const segment of folderSegments) {
+            const folder = await this.ensureFolder(folders, projectId, segment, parentFolderId);
+            parentFolderId = folder.id;
+        }
+
+        return parentFolderId ?? undefined;
+    }
+
+    /** Logs the "folderSync is on but unusable" warning at most once per engine. */
+    private warnFoldersUnavailable(reason: string): void {
+        if (this.folderUnavailableWarned) return;
+        this.folderUnavailableWarned = true;
+        console.warn(`[SyncEngine] folderSync is enabled but ${reason}. Workflows will be pushed without folder assignment.`);
+    }
+
+    /**
+     * Returns the folder named `name` under `parentFolderId`, creating it if
+     * missing. Concurrent calls for the same `(projectId, parentFolderId, name)`
+     * triple share a single in-flight `createFolder` promise so we never POST
+     * twice for the same folder.
+     */
+    private async ensureFolder(
+        folders: IFolder[],
+        projectId: string,
+        name: string,
+        parentFolderId: string | null,
+    ): Promise<IFolder> {
+        const existing = folders.find(
+            (candidate) => candidate.name === name && (candidate.parentFolderId ?? null) === parentFolderId,
+        );
+        if (existing) return existing;
+
+        const key = `${projectId}::${parentFolderId ?? ''}::${name}`;
+        const inFlight = this.inFlightFolderCreates.get(key);
+        if (inFlight) return inFlight;
+
+        const promise = this.client
+            .createFolder(projectId, { name, parentFolderId })
+            .then((created) => {
+                folders.push(created);
+                return created;
+            })
+            .finally(() => {
+                this.inFlightFolderCreates.delete(key);
+            });
+        this.inFlightFolderCreates.set(key, promise);
+        return promise;
+    }
+
+    /**
+     * Returns true when n8n rejected the create call specifically because it
+     * does not understand the `parentFolderId` field — in which case we retry
+     * without it so the sync still completes against older n8n instances.
+     *
+     * Tightened from the original `'folder'` substring match (which would have
+     * silently swallowed unrelated 400/404 errors) to require either a
+     * structured `parentFolderId` / `parentFolder` field in the response body,
+     * or a message that explicitly mentions one of those tokens.
+     */
+    private isUnsupportedParentFolderError(error: any): boolean {
+        const status = error?.response?.status;
+        if (![400, 404, 422].includes(status)) return false;
+
+        const PARENT_FOLDER_PATTERN = /(parentfolderid|parent folder id|parentfolder)/i;
+        const PARENT_FOLDER_KEYS = new Set(['parentfolderid', 'parentfolder']);
+        // n8n 2.19-2.31 licenses folders but its workflow schema has no `parentFolderId`
+        // yet, and AJV's `additionalProperties: false` rejects it *without naming the
+        // field*: `request/body must NOT have additional properties`. The patterns above
+        // never match that, so the push aborted instead of degrading, leaving an orphaned
+        // folder behind. Reported with live captures on #527 by @Happily-Coding.
+        //
+        // Safe to treat as an unsupported-`parentFolderId` signal: this matcher is only
+        // consulted when we just added `parentFolderId` to an otherwise-valid payload, and
+        // the retry strips only that field. If some *other* unknown property were the real
+        // cause, the retry fails again and the error surfaces as before -- nothing is hidden.
+        const GENERIC_ADDITIONAL_PROPERTY_PATTERN = /must not have additional properties/i;
+
+        const data = error?.response?.data;
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            for (const key of Object.keys(data)) {
+                if (PARENT_FOLDER_KEYS.has(key.toLowerCase())) return true;
+            }
+            const dataMessage = String(data.message ?? '').toLowerCase();
+            if (PARENT_FOLDER_PATTERN.test(dataMessage)) return true;
+            if (GENERIC_ADDITIONAL_PROPERTY_PATTERN.test(dataMessage)) return true;
+            return false;
+        }
+
+        const errorMessage = String(error?.message ?? '').toLowerCase();
+        return PARENT_FOLDER_PATTERN.test(errorMessage)
+            || GENERIC_ADDITIONAL_PROPERTY_PATTERN.test(errorMessage);
     }
 
     private readTypeScriptFile(filePath: string): string | null {

@@ -11,6 +11,8 @@ export * from './services/sync-event-journal.js';
 export * from './services/directory-utils.js';
 export * from './services/workflow-dir-name.js';
 export * from './services/instance-identifier.js';
+export * from './services/tls-certificates.js';
 export * from './services/workspace-setup-service.js';
+export * from './services/workflow-path-utils.js';
+export * from './services/folder-path-resolver.js';
 export * from './helpers/index.js';
-

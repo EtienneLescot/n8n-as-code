@@ -1,4 +1,5 @@
 import { NodeSchemaProvider } from './node-schema-provider.js';
+import { resolveCustomNodesConfig } from './custom-nodes-config.js';
 import { TypeScriptParser, WorkflowBuilder } from '@n8n-as-code/transformer';
 
 export interface ValidationResult {
@@ -26,8 +27,17 @@ export interface ValidationWarning {
 export class WorkflowValidator {
   private provider: NodeSchemaProvider;
 
+  /**
+   * @param customIndexPath - Path to the technical node index (defaults to the bundled asset)
+   * @param customNodesPath - Path to the custom-node sidecar. When omitted it is resolved from
+   *   the current project (n8nac-config.json / n8nac-custom-nodes.json), so embedders such as
+   *   `n8nac push --verify` honour the sidecar without wiring it themselves.
+   */
   constructor(customIndexPath?: string, customNodesPath?: string) {
-    this.provider = new NodeSchemaProvider(customIndexPath, customNodesPath);
+    this.provider = new NodeSchemaProvider(
+      customIndexPath,
+      customNodesPath ?? resolveCustomNodesConfig().resolvedPath
+    );
   }
 
   /**
@@ -137,9 +147,6 @@ export class WorkflowValidator {
         continue; // Can't validate further without type
       }
 
-      // Extract node name from type (e.g., "n8n-nodes-base.httpRequest" -> "httpRequest")
-      const nodeTypeName = node.type.split('.').pop();
-
       // Detect if this is a community node
       // Community nodes formats:
       // - @scope/n8n-nodes-* (where scope is NOT 'n8n')
@@ -151,8 +158,10 @@ export class WorkflowValidator {
         (node.type.startsWith('@') && !node.type.startsWith('@n8n/')) ||
         (node.type.startsWith('n8n-nodes-') && !node.type.startsWith('n8n-nodes-base.') && !node.type.startsWith('n8n-nodes-langchain.'));
 
-      // Check if node type exists
-      const nodeSchema = this.provider.getNodeSchema(nodeTypeName);
+      // Check if node type exists. Look up by full type — the provider falls back to the
+      // short name itself, and truncating here would resolve "@n8n/n8n-nodes-langchain.code"
+      // to the unrelated "n8n-nodes-base.code" schema.
+      const nodeSchema = this.provider.getNodeSchema(node.type);
       if (!nodeSchema) {
         if (isCommunityNode) {
           // Community nodes: emit a warning but don't fail validation
@@ -230,6 +239,7 @@ export class WorkflowValidator {
     // 4. Validate connections
     if (workflow.connections) {
       this.validateConnections(workflow.connections, nodeMap, errors, warnings);
+      this.validateFallbackModels(workflow.connections, nodeMap, errors);
     }
 
     return {
@@ -359,8 +369,10 @@ export class WorkflowValidator {
       }
     }
 
-    // Check for unknown parameters (might be typos)
-    if (warnUnknownParameters) {
+    // Check for unknown parameters (might be typos).
+    // A schema declaring no properties says nothing about what is known, so flagging every
+    // parameter would be noise — that is how a custom-node override opts out of the check.
+    if (warnUnknownParameters && schemaProps.length > 0) {
       const knownParamNames = new Set(schemaProps.map((p: any) => p.name));
       for (const paramName of Object.keys(params)) {
         if (!knownParamNames.has(paramName)) {
@@ -570,6 +582,63 @@ export class WorkflowValidator {
       }
 
       this.validateDefaultShape(node, nestedDefault, actualValue[key], nestedPath, errors);
+    }
+  }
+
+  /**
+   * `needsFallback: true` requires a second model on ai_languageModel input 1.
+   * Without it the node fails at run time with "A Fallback Model sub-node must
+   * be connected and enabled" — and with onError: continueRegularOutput that
+   * failure is invisible, so refuse to push it.
+   */
+  private validateFallbackModels(
+    connections: any,
+    nodeMap: Map<string, any>,
+    errors: ValidationError[]
+  ): void {
+    const connectedSlots = new Set<string>();
+    for (const [sourceName, sourceConnections] of Object.entries(connections)) {
+      // A disabled model never runs, so it cannot satisfy the fallback
+      // requirement — n8n rejects it at run time with "must be connected
+      // and enabled".
+      if (nodeMap.get(sourceName)?.disabled === true) continue;
+      const roleGroups = (sourceConnections as any)?.ai_languageModel;
+      if (!Array.isArray(roleGroups)) continue;
+      for (const group of roleGroups) {
+        if (!Array.isArray(group)) {
+          // validateConnections only traverses "main"; nothing else reports
+          // malformed ai_languageModel wiring, so it must be rejected here.
+          errors.push({
+            type: 'error',
+            nodeName: sourceName,
+            message: `Malformed ai_languageModel connection group on node "${sourceName}": expected an array of connections`,
+          });
+          continue;
+        }
+        for (const conn of group) {
+          if (!conn || typeof conn !== 'object' || typeof conn.node !== 'string') {
+            errors.push({
+              type: 'error',
+              nodeName: sourceName,
+              message: `Malformed ai_languageModel connection on node "${sourceName}": missing or invalid "node" field`,
+            });
+            continue;
+          }
+          connectedSlots.add(`${conn.node}#${conn.index ?? 0}`);
+        }
+      }
+    }
+
+    for (const [name, node] of nodeMap) {
+      if (node.parameters?.needsFallback !== true) continue;
+      if (connectedSlots.has(`${name}#1`)) continue;
+      errors.push({
+        type: 'error',
+        nodeId: node.id,
+        nodeName: name,
+        message: `Node "${name}" has needsFallback: true but no fallback model on ai_languageModel input 1. Declare both models: .uses({ ai_languageModel: [this.Model.output, this.FallbackModel.output] })`,
+        path: `nodes[${name}].parameters.needsFallback`,
+      });
     }
   }
 

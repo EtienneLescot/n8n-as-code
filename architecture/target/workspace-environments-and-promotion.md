@@ -1117,8 +1117,14 @@ canManageRuntime: boolean;
 Credentials are outside the tracked environment definition. For v4 environments, n8nac should avoid using one generic API key for every environment; it should resolve API keys in this order:
 
 1. explicit scoped environment variables, for example `N8NAC_ENV_PROD_API_KEY` or `N8NAC_TARGET_PROD_N8N_API_KEY`;
-2. global n8n-manager secret store, where the environment target is a global reference or the embedded target can be matched safely by URL;
-4. missing.
+2. the secret stored for the environment itself, keyed by environment ID;
+3. the secret stored for the environment target, keyed by target ID;
+4. global n8n-manager secret store, where the environment target is a global reference or the embedded target can be matched safely by URL;
+5. missing.
+
+Environment-scoped storage is what keeps two environments isolated when they share one base URL, which happens when a single n8n instance hosts several accounts. Target-scoped and URL-matched lookups are shared by every environment on that target, so they are fallbacks only.
+
+Steps 2 and 3 apply to embedded targets. A managed instance owns its credentials, so environments on a global reference resolve only a scoped environment variable or the managed instance key; workspace-stored keys must not shadow it, because an environment moved from an embedded target to a managed one would otherwise keep authenticating with the old remote key.
 
 Workspace-local ignored secret files are not part of the MVP lookup order. This spec does not require n8nac to create or own a workspace-local secrets file, because secrets remain the user’s responsibility. If workspace-local secret lookup is added later, it must define exact file paths, schema, gitignore behavior, precedence, and malformed-file diagnostics.
 

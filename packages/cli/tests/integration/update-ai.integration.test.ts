@@ -5,6 +5,20 @@ import { execFileSync } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 
+/**
+ * Every test here either spawns the built CLI (`node dist/index.js`) or loads its dist
+ * module graph in-process. Node process startup on Windows makes each one take seconds,
+ * which leaves no headroom under vitest's 5s default. Applied per test because vitest 1.x
+ * silently ignores a suite-level `timeout` option on `describe`.
+ */
+const INTEGRATION_TIMEOUT = 30_000;
+
+/**
+ * `tsc -b` walks the whole project-reference graph, so on a clean checkout this builds
+ * every upstream package, not just the CLI — far past vitest's 10s default hookTimeout.
+ */
+const BUILD_TIMEOUT = 180_000;
+
 const tempDirs: string[] = [];
 const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const cliEntry = path.join(repoRoot, 'packages/cli/dist/index.js');
@@ -102,12 +116,14 @@ function expectNativeMcpRoutingPolicy(content: string, cliCmd: string, skillsCmd
 }
 
 beforeAll(() => {
+    // `npm` is a .cmd shim on Windows, which execFileSync cannot spawn without a shell.
     execFileSync('npm', ['run', 'build', '--workspace=packages/cli'], {
         cwd: repoRoot,
         stdio: 'pipe',
         encoding: 'utf8',
+        shell: process.platform === 'win32',
     });
-});
+}, BUILD_TIMEOUT);
 
 afterAll(() => {
     for (const dir of tempDirs) {
@@ -148,7 +164,7 @@ describe('CLI update-ai integration', () => {
         expect(architectSkill).toContain('Managed Local Runtime');
         expect(architectSkill).toContain('--api-key-stdin');
         expect(agentsContent).not.toContain('saved instance configs');
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('generates native MCP routing guidance that uses live assist only when needed', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-native-mcp-routing-');
@@ -157,7 +173,7 @@ describe('CLI update-ai integration', () => {
         const architectSkill = fs.readFileSync(path.join(workspaceDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf8');
 
         expectNativeMcpRoutingPolicy(architectSkill, `node ${cliEntry}`, `node ${cliEntry} skills`);
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('embeds the n8nac CLI version stamp in AGENTS.md', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-stamp-');
@@ -165,7 +181,7 @@ describe('CLI update-ai integration', () => {
 
         const agentsContent = fs.readFileSync(path.join(workspaceDir, 'AGENTS.md'), 'utf8');
         expect(agentsContent).toContain(`<!-- n8nac-version: ${cliVersion} -->`);
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('reports unsupported config versions from workspace status for legacy configs', () => {
         const workspaceDir = createTempDir('n8nac-status-legacy-workspace-');
@@ -186,7 +202,7 @@ describe('CLI update-ai integration', () => {
         expect(result.stderr).toContain('Unsupported n8nac workspace config version: 2');
         expect(result.stderr).toContain('n8nac env add <name> --base-url <url> --workflows-path workflows/<name>');
         expect(result.stderr).not.toContain('workspace migrate');
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('reports unsupported config versions from environment commands', () => {
         const workspaceDir = createTempDir('n8nac-env-blocked-legacy-workspace-');
@@ -206,7 +222,7 @@ describe('CLI update-ai integration', () => {
         expect(result.stdout).toBe('');
         expect(result.stderr).toContain('Unsupported n8nac workspace config version: 2');
         expect(result.stderr).not.toContain('workspace migrate');
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('uses n8nac workflow presentation and keeps n8n-manager guidance limited', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-manager-tools-');
@@ -223,7 +239,7 @@ describe('CLI update-ai integration', () => {
         expect(architectSkill).toContain(`Do not call \`${managerCmd} presentWorkflowResult\``);
         expect(fs.existsSync(path.join(workspaceDir, '.github/agents/n8n-manager.agent.md'))).toBe(false);
         expect(fs.existsSync(path.join(workspaceDir, '.agents/skills/n8n-manager/SKILL.md'))).toBe(false);
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('checkAndRefreshIfStale silently refreshes AGENTS.md when the version stamp is stale', async () => {
         const workspaceDir = createTempDir('n8nac-update-ai-stale-');
@@ -253,7 +269,7 @@ describe('CLI update-ai integration', () => {
         expect(refreshed).not.toContain('workspace migrate --json');
         expect(fs.existsSync(path.join(workspaceDir, '.github/agents/n8n-architect.agent.md'))).toBe(true);
         expect(fs.existsSync(path.join(workspaceDir, '.agents/skills/n8n-architect/SKILL.md'))).toBe(true);
-    });
+    }, INTEGRATION_TIMEOUT);
 
     it('refreshes n8n-workflows.d.ts for all configured environment directories', () => {
         const workspaceDir = createTempDir('n8nac-update-ai-dts-');
@@ -299,5 +315,5 @@ describe('CLI update-ai integration', () => {
         const dtsContent = fs.readFileSync(dtsPath, 'utf8');
         expect(dtsContent).not.toBe('// stale');
         expect(dtsContent.length).toBeGreaterThan(100);
-    });
+    }, INTEGRATION_TIMEOUT);
 });
