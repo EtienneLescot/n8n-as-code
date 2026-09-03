@@ -29,6 +29,8 @@ export interface RestFolderData {
     folders: IFolder[];
     /** `workflowId -> parentFolderId` for every foldered workflow. */
     workflowParentFolderId: Map<string, string>;
+    /** Set when the folders endpoint returns 403 (unregistered Community) or 404 (predates folders). */
+    licenseUnavailableReason?: string;
 }
 
 /** n8n's placeholder id for the current user's personal project. */
@@ -90,11 +92,9 @@ function warnIfInsecureHost(host: string): void {
  *
  * Rationale: n8n's public workflow API omits a workflow's folder ownership on
  * every edition (`parentFolderId` is `writeOnly` in the spec and no endpoint maps
- * workflows to folders), and `GET /api/v1/projects/{id}/folders` is license-gated
- * on Community (403). So the public folder path cannot reconstruct a nested layout
- * on `pull`. The n8n UI itself uses these `/rest` endpoints with a login cookie,
- * which work on every edition. This source replicates that path so `folderSync`
- * can mirror the real folder tree.
+ * workflows to folders). The n8n UI itself uses these `/rest` endpoints with a login cookie,
+ * which work whenever folders are licensed on the instance (registered Community edition or paid plans).
+ * This source replicates that path so `folderSync` can mirror the real folder tree.
  *
  * It only fetches data; folder→path resolution is delegated to the existing
  * {@link FolderPathResolver} so behavior matches the public-API code path.
@@ -188,7 +188,24 @@ export class RestFolderSource {
         // editor, avoids paginating every workflow visible to the account, and keeps
         // the map to this project's workflows (never a team project's).
         const workflows = await this.getAll<any>('/rest/workflows', { filter: JSON.stringify({ projectId: resolvedProjectId }) });
-        const folders = await this.getAll<IFolder>(`/rest/projects/${encodeURIComponent(resolvedProjectId)}/folders`);
+        let folders: IFolder[] = [];
+        let licenseUnavailableReason: string | undefined;
+        try {
+            folders = await this.getAll<IFolder>(`/rest/projects/${encodeURIComponent(resolvedProjectId)}/folders`);
+        } catch (error: any) {
+            // 403 on /folders indicates that the instance lacks the `feat:folders` license
+            // (e.g. an unregistered Community instance); 404 indicates an older n8n version without folders.
+            // Scoping this degrade specifically to the /folders endpoint: a 403 on workflows or other endpoints
+            // remains a real auth error that fails closed, whereas folders license absence degrades to a flat pull
+            // with a warning, matching the push path.
+            if ([403, 404].includes(error?.response?.status)) {
+                licenseUnavailableReason = error?.response?.status === 403
+                    ? 'the n8n instance reports no folder support (register the Community instance to unlock folders)'
+                    : 'this n8n version has no folder API (needs n8n 2.19+, and 2.32+ to place workflows)';
+            } else {
+                throw error;
+            }
+        }
 
         const workflowParentFolderId = new Map<string, string>();
         for (const wf of workflows) {
@@ -197,7 +214,7 @@ export class RestFolderSource {
             if (folderId) workflowParentFolderId.set(wf.id, folderId);
         }
 
-        return { folders, workflowParentFolderId };
+        return { folders, workflowParentFolderId, licenseUnavailableReason };
     }
 
     /** The user's personal project id from `/rest/projects` (type === 'personal'); undefined if unavailable. */
