@@ -9,9 +9,9 @@ title: Folder Sync
 folder on the instance, creating the folders if they do not exist yet.
 
 Out of the box it is **push-only** over n8n's public API — that direction is a
-property of the API, not a choice we made. An **optional session-auth source** can
+property of the API, not a choice we made. An **optional, experimental session-auth source** can
 additionally reconstruct the nested layout on `pull` (see
-[Reading folders on pull](#reading-folders-on-pull-optional)). Read the sections
+[Reading folders on pull](#reading-folders-on-pull-experimental)). Read the sections
 below before enabling it, because they determine what you can expect from `pull`.
 
 ## What works, and what cannot
@@ -37,7 +37,7 @@ Consequences:
   inside a folder is pulled to the root of your workflows directory. Move it where
   you want it once, and the next push pins that placement on n8n. (With the optional
   session source configured, pull instead reconstructs the nested layout — see
-  [Reading folders on pull](#reading-folders-on-pull-optional).)
+  [Reading folders on pull](#reading-folders-on-pull-experimental).)
 - Workflows already tracked in `.n8n-state.json` keep their local path across pulls,
   so an existing nested layout is never flattened.
 - `n8nac status` cannot report "someone moved this workflow in the UI". Drift in that
@@ -55,7 +55,7 @@ Consequences:
 - **An API key only, to push.** No session login is required to push folders. The
   project id is read from a workflow's `shared[]` payload, so the Enterprise-gated
   `GET /api/v1/projects` endpoint is never called. Reconstructing folders on *pull*
-  is the one thing that needs more — see [Reading folders on pull](#reading-folders-on-pull-optional).
+  is the one thing that needs more — see [Reading folders on pull](#reading-folders-on-pull-experimental).
 
 ## Configuration
 
@@ -85,7 +85,10 @@ for organisation. With it off, a push only ever places workflows the repository 
 an opinion about, and never undoes a folder someone created in the n8n UI. With it
 on, the repository layout wins outright: local root means project root.
 
-## Reading folders on pull (optional)
+## Reading folders on pull (Experimental)
+
+> [!NOTE]
+> **Experimental workaround**: In n8n, `parentFolderId` is write-only in the public API. Pulling the folder hierarchy requires communicating with n8n's internal `/rest` session API (the same endpoints used by the n8n web app). This feature is opt-in and experimental. If n8n eventually adds folder reading to its public API, this session mechanism may be deprecated in favor of the public API.
 
 Because the public API never returns a workflow's folder (the table above), `pull`
 normally lays workflows out flat. If you want `pull` to **reconstruct the nested
@@ -113,6 +116,22 @@ n8nac env auth folder-logout prod
 The stored cookie is a bearer credential. It lives in the same local secret store as
 your API keys (honouring `N8N_MANAGER_HOME`), `n8nac env auth clear` removes it along
 with the API key, and it is redacted from command output.
+
+### SSO / SAML / 2FA (MFA) Workaround
+
+`n8nac env auth folder-login` performs a direct username/password login against n8n's `/rest/login`. If your n8n instance uses **Single Sign-On (Google, Okta, SAML)** or has **Two-Factor Authentication (2FA / MFA)** enabled on your account:
+- Direct email/password login will be rejected.
+- You can obtain a valid session cookie directly from your browser:
+  1. Log into your n8n web interface in your browser.
+  2. Open Developer Tools (`F12`) → **Application** (Chrome/Edge) or **Storage** (Firefox) → **Cookies**.
+  3. Find and copy the value of the `n8n-auth` cookie (the JWT string).
+  4. Pass it via the environment variable:
+     ```bash
+     export N8NAC_FOLDER_LOGIN_TOKEN="n8n-auth=<jwt>"
+     # or per-environment:
+     export N8NAC_ENV_PROD_FOLDER_TOKEN="n8n-auth=<jwt>"
+     ```
+This token will remain valid until the cookie expires in n8n (typically ~7 days).
 
 ### Credentials via environment (CI)
 
