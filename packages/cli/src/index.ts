@@ -721,7 +721,7 @@ environmentAuthProgram.command('clear')
     });
 
 environmentAuthProgram.command('folder-login')
-    .description("Store a session token so folderSync's pull can reconstruct nested folders — n8n's public workflow API never reports a workflow's folder. Logs in once via /rest and saves the session cookie locally until its server-issued expiry (never the password). Clear it with `folder-logout`.")
+    .description("[Experimental] Store a session token so folderSync's pull can reconstruct nested folders — n8n's public workflow API never reports a workflow's folder. Logs in once via /rest and saves the session cookie locally until its server-issued expiry (never the password). Clear it with `folder-logout`.")
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--user <email>', 'Login email / identifier')
     .option('--password <password>', 'Login password (prefer --password-stdin; --password can be exposed in process listings)')
@@ -748,20 +748,24 @@ environmentAuthProgram.command('folder-login')
         const password = options.password || '';
         if (!password) throw new Error('Provide --password or --password-stdin.');
 
+        if (!options.json) {
+            console.log(chalk.dim('[Experimental] Authenticating via n8n internal /rest session API. For instances with SSO or 2FA, pass N8NAC_FOLDER_LOGIN_TOKEN instead.'));
+        }
+
         const { cookie, expiresAt } = await RestFolderSource.login(environment.host, user, password);
         configService.saveFolderSession(environment.environmentTargetId, { cookie, expiresAt, user });
         printJsonOrText(
             options,
             { environment: environment.environmentName, user, expiresAt: expiresAt ?? null },
             chalk.green(
-                `✔ Folder-login session stored for "${environment.environmentName}"` +
+                `✔ [Experimental] Folder-login session stored for "${environment.environmentName}"` +
                 (expiresAt ? ` (expires ${expiresAt}).` : '.'),
             ),
         );
     });
 
 environmentAuthProgram.command('folder-logout')
-    .description('Remove the stored folderSync session token for an environment (paired with folder-login).')
+    .description('[Experimental] Remove the stored folderSync session token for an environment (paired with folder-login).')
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--json', 'Output result as JSON')
     .action((nameOrId, options) => {
