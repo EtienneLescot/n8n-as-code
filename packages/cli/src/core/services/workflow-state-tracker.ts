@@ -328,6 +328,8 @@ export class WorkflowStateTracker extends EventEmitter {
             const remoteWorkflows = await this.client.getAllWorkflows(this.projectId);
             this.isConnected = true;
 
+            const folderResolver = await this.createFolderResolver(remoteWorkflows);
+
             // Update remoteIds and names (ID is the unique key; name is for display only)
             this.remoteIds.clear();
             this.remoteNames.clear();
@@ -336,7 +338,6 @@ export class WorkflowStateTracker extends EventEmitter {
             this.remoteParentFolderIds.clear();
             this.remoteFolderPaths.clear();
 
-            const folderResolver = await this.createFolderResolver(remoteWorkflows);
             const state = this.loadState();
             let stateChanged = false;
 

@@ -135,7 +135,7 @@ export class RestFolderSource {
         const res = await axios.post(
             `${host.replace(/\/+$/, '')}/rest/login`,
             { emailOrLdapLoginId: user, password: pass },
-            { headers: { 'Content-Type': 'application/json' }, timeout: 30000 },
+            { headers: { 'Content-Type': 'application/json' }, timeout: 30000, maxRedirects: 0 },
         );
         const setCookie: string[] | undefined = res.headers?.['set-cookie'];
         const cookie = extractAuthCookie(setCookie);
