@@ -6,7 +6,7 @@
  */
 
 import { Project, SourceFile, SyntaxKind, ClassDeclaration, PropertyDeclaration, MethodDeclaration, Node } from 'ts-morph';
-import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata, AI_ARRAY_ROLES } from '../types.js';
+import { WorkflowAST, NodeAST, ConnectionAST, WorkflowMetadata, AI_ARRAY_ROLES, KNOWN_NODE_METADATA_KEYS } from '../types.js';
 
 /**
  * Parse TypeScript workflow file
@@ -165,6 +165,16 @@ export class TypeScriptParser {
             const initializer = prop.getInitializer();
             const parameters = initializer ? this.extractValueFromASTNode(initializer) : {};
             
+            const handledMetadataKeys = new Set<string>(KNOWN_NODE_METADATA_KEYS);
+            const extraMetadata: Record<string, any> = {};
+            if (metadata && typeof metadata === 'object') {
+                for (const [key, value] of Object.entries(metadata)) {
+                    if (!handledMetadataKeys.has(key) && value !== undefined) {
+                        extraMetadata[key] = value;
+                    }
+                }
+            }
+
             nodes.push({
                 propertyName,
                 ...(metadata.id && { id: metadata.id }),
@@ -183,6 +193,8 @@ export class TypeScriptParser {
                 ...(metadata.disabled !== undefined && { disabled: metadata.disabled }),
                 ...(metadata.notes !== undefined && { notes: metadata.notes }),
                 ...(metadata.notesInFlow !== undefined && { notesInFlow: metadata.notesInFlow }),
+                ...(metadata.continueOnFail !== undefined && { continueOnFail: metadata.continueOnFail }),
+                ...extraMetadata,
                 parameters
                 // aiDependencies will be added by extractAIDependencies()
             });

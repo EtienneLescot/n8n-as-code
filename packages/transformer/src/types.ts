@@ -87,12 +87,18 @@ export interface NodeAST {
     disabled?: boolean;
     notes?: string;
     notesInFlow?: boolean;
+
+    // Legacy error handling
+    continueOnFail?: boolean;
     
     // Node parameters (property value in TypeScript)
     parameters: Record<string, any>;
     
     // AI node dependencies (from .uses() calls)
     aiDependencies?: AIDependencies;
+
+    // Passthrough for unmodelled node properties
+    [key: string]: any;
 }
 
 /**
@@ -217,7 +223,50 @@ export interface N8nNode {
     disabled?: boolean;
     notes?: string;
     notesInFlow?: boolean;
+
+    // Legacy error handling
+    continueOnFail?: boolean;
+
+    // Passthrough for unmodelled node properties
+    [key: string]: any;
 }
+
+/**
+ * Known node-level metadata properties in n8n / @node decorator.
+ */
+export const KNOWN_NODE_METADATA_KEYS = [
+    'id',
+    'webhookId',
+    'name',
+    'type',
+    'version',
+    'typeVersion',
+    'position',
+    'credentials',
+    'onError',
+    'alwaysOutputData',
+    'executeOnce',
+    'retryOnFail',
+    'maxTries',
+    'waitBetweenTries',
+    'disabled',
+    'notes',
+    'notesInFlow',
+    'continueOnFail',
+] as const;
+
+/**
+ * Internal NodeAST properties that should not be emitted into @node decorators
+ * or serialized back as extra n8n node properties.
+ */
+export const INTERNAL_AST_NODE_KEYS = [
+    'propertyName',
+    'displayName',
+    'version',
+    'typeVersion',
+    'parameters',
+    'aiDependencies',
+] as const;
 
 /**
  * Type aliases for AST / Metadata nodes

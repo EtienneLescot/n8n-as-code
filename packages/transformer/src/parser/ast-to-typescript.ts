@@ -4,7 +4,7 @@
  * Generates TypeScript code from AST representation
  */
 
-import { WorkflowAST, NodeAST, ConnectionAST, JsonToTypeScriptOptions, AI_ARRAY_ROLES, AI_SINGLE_ROLES } from '../types.js';
+import { WorkflowAST, NodeAST, ConnectionAST, JsonToTypeScriptOptions, AI_ARRAY_ROLES, AI_SINGLE_ROLES, KNOWN_NODE_METADATA_KEYS, INTERNAL_AST_NODE_KEYS } from '../types.js';
 import {
     formatTypeScript,
     generateSectionComment,
@@ -110,6 +110,7 @@ export class AstToTypeScriptGenerator {
             if (n.executeOnce) flags.push('[executeOnce]');
             if (n.retryOnFail) flags.push('[retry]');
             if (n.disabled) flags.push('[disabled]');
+            if (n.continueOnFail) flags.push('[continueOnFail]');
             for (const role of subNodeRoles.get(n.propertyName) ?? []) flags.push(`[${role}]`);
             lines.push(`// ${prop} ${t} ${flags.join(' ')}`);
         }
@@ -361,6 +362,20 @@ export class AstToTypeScriptGenerator {
         }
         if (node.notesInFlow !== undefined) {
             parts.push(`notesInFlow: ${node.notesInFlow}`);
+        }
+        if (node.continueOnFail !== undefined) {
+            parts.push(`continueOnFail: ${node.continueOnFail}`);
+        }
+
+        const handledKeys = new Set<string>([
+            ...KNOWN_NODE_METADATA_KEYS,
+            ...INTERNAL_AST_NODE_KEYS
+        ]);
+
+        for (const [key, value] of Object.entries(node)) {
+            if (!handledKeys.has(key) && value !== undefined) {
+                parts.push(`${this.formatPropertyKey(key)}: ${this.formatValue(value, 2)}`);
+            }
         }
         
         return `{\n        ${parts.join(',\n        ')}\n    }`;

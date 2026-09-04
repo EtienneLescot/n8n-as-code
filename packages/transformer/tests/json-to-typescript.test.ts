@@ -573,4 +573,189 @@ export class AiTestWorkflow {
 
         expect(tsCode).toMatch(/InactiveNode\s+set\s+.*\[disabled\]/);
     });
+
+    it('should preserve continueOnFail through full pull→push roundtrip', async () => {
+        const workflowJson = {
+            id: 'wf-roundtrip-continue-on-fail',
+            name: 'Roundtrip continueOnFail Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-cof-1',
+                    name: 'Lenient Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [100, 200],
+                    parameters: { mode: 'manual' },
+                    continueOnFail: true,
+                },
+                {
+                    id: 'node-cof-2',
+                    name: 'Strict Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [300, 200],
+                    parameters: { mode: 'manual' },
+                    continueOnFail: false,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        // JSON → AST → TypeScript
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(workflowJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false, commentStyle: 'minimal' });
+
+        expect(tsCode).toContain('continueOnFail: true');
+        expect(tsCode).toContain('continueOnFail: false');
+
+        // TypeScript → AST → JSON
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+
+        expect(ast2.nodes[0].continueOnFail).toBe(true);
+        expect(ast2.nodes[1].continueOnFail).toBe(false);
+
+        const builder = new WorkflowBuilder();
+        const rebuilt = builder.build(ast2);
+
+        expect(rebuilt.nodes[0].continueOnFail).toBe(true);
+        expect(rebuilt.nodes[1].continueOnFail).toBe(false);
+    });
+
+    it('should emit [continueOnFail] flag in workflow-map for continueOnFail nodes', async () => {
+        const workflowJson = {
+            id: 'wf-flags-continue-on-fail',
+            name: 'ContinueOnFail Flags Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-cof-flag-1',
+                    name: 'Tolerant Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [0, 0],
+                    parameters: {},
+                    continueOnFail: true,
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        const parser = new JsonToAstParser();
+        const ast = parser.parse(workflowJson as any);
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast, { format: false });
+
+        expect(tsCode).toMatch(/TolerantNode\s+set\s+.*\[continueOnFail\]/);
+    });
+
+    it('should preserve unmodelled node properties through full pull→push roundtrip', async () => {
+        const workflowJson = {
+            id: 'wf-roundtrip-unmodelled',
+            name: 'Roundtrip Unmodelled Properties Workflow',
+            active: false,
+            nodes: [
+                {
+                    id: 'node-unmodelled-1',
+                    name: 'Custom Node',
+                    type: 'n8n-nodes-base.set',
+                    typeVersion: 3,
+                    position: [100, 200],
+                    parameters: { value: 123 },
+                    customFlag: true,
+                    customScore: 42,
+                    customLabel: 'production-critical',
+                    customTags: ['tag1', 'tag2'],
+                    customMeta: {
+                        tier: 'gold',
+                        retriesAllowed: 5,
+                    },
+                },
+            ],
+            connections: {},
+            settings: {},
+        };
+
+        // JSON → AST
+        const jsonParser = new JsonToAstParser();
+        const ast1 = jsonParser.parse(workflowJson as any);
+
+        expect(ast1.nodes[0].customFlag).toBe(true);
+        expect(ast1.nodes[0].customScore).toBe(42);
+        expect(ast1.nodes[0].customLabel).toBe('production-critical');
+        expect(ast1.nodes[0].customTags).toEqual(['tag1', 'tag2']);
+        expect(ast1.nodes[0].customMeta).toEqual({ tier: 'gold', retriesAllowed: 5 });
+
+        // AST → TypeScript
+        const generator = new AstToTypeScriptGenerator();
+        const tsCode = await generator.generate(ast1, { format: false, commentStyle: 'minimal' });
+
+        expect(tsCode).toContain('customFlag: true');
+        expect(tsCode).toContain('customScore: 42');
+        expect(tsCode).toContain('customLabel: "production-critical"');
+        expect(tsCode).toContain('tier: "gold"');
+
+        // TypeScript → AST
+        const tsParser = new TypeScriptParser();
+        const ast2 = await tsParser.parseCode(tsCode);
+
+        expect(ast2.nodes[0].customFlag).toBe(true);
+        expect(ast2.nodes[0].customScore).toBe(42);
+        expect(ast2.nodes[0].customLabel).toBe('production-critical');
+        expect(ast2.nodes[0].customTags).toEqual(['tag1', 'tag2']);
+        expect(ast2.nodes[0].customMeta).toEqual({ tier: 'gold', retriesAllowed: 5 });
+
+        // AST → JSON
+        const builder = new WorkflowBuilder();
+        const rebuilt = builder.build(ast2);
+
+        const rebuiltNode = rebuilt.nodes[0];
+        expect(rebuiltNode.customFlag).toBe(true);
+        expect(rebuiltNode.customScore).toBe(42);
+        expect(rebuiltNode.customLabel).toBe('production-critical');
+        expect(rebuiltNode.customTags).toEqual(['tag1', 'tag2']);
+        expect(rebuiltNode.customMeta).toEqual({ tier: 'gold', retriesAllowed: 5 });
+    });
+
+    it('should support authoring unmodelled properties directly in TypeScript @node decorator', async () => {
+        const tsWorkflow = `
+import { workflow, node, links } from '@n8n-as-code/core';
+
+@workflow({ name: 'Direct TS Unmodelled', active: false })
+export class DirectTsWorkflow {
+    @node({
+        name: 'Authored Node',
+        type: 'n8n-nodes-base.set',
+        version: 1,
+        position: [0, 0],
+        customFutureSetting: 'preserved-value',
+        nestedFutureConfig: {
+            mode: 'experimental',
+            count: 3
+        }
+    })
+    AuthoredNode = { message: 'hello' };
+
+    @links()
+    defineRouting() {}
+}
+`;
+
+        const tsParser = new TypeScriptParser();
+        const ast = await tsParser.parseCode(tsWorkflow);
+
+        expect(ast.nodes[0].customFutureSetting).toBe('preserved-value');
+        expect(ast.nodes[0].nestedFutureConfig).toEqual({ mode: 'experimental', count: 3 });
+
+        const builder = new WorkflowBuilder();
+        const rebuilt = builder.build(ast);
+
+        expect(rebuilt.nodes[0].customFutureSetting).toBe('preserved-value');
+        expect(rebuilt.nodes[0].nestedFutureConfig).toEqual({ mode: 'experimental', count: 3 });
+    });
 });
