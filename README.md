@@ -16,6 +16,7 @@
 [![npm: cli](https://img.shields.io/npm/v/n8nac?label=cli&logo=npm)](https://www.npmjs.com/package/n8nac)
 [![npm: skills](https://img.shields.io/npm/v/@n8n-as-code/skills?label=skills&logo=npm)](https://www.npmjs.com/package/@n8n-as-code/skills)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Beta%20%2F%20Pending%20Review-orange)](https://n8nascode.dev/docs/usage/claude-plugin/)
+[![X](https://img.shields.io/badge/X-@LescotEtienne-000000?logo=x&logoColor=white)](https://x.com/LescotEtienne)
 [![Sponsor](https://img.shields.io/github/sponsors/EtienneLescot?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/EtienneLescot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
