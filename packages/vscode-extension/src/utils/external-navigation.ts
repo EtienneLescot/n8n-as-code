@@ -14,7 +14,7 @@ export type ExternalNavigationReason =
     | 'unknown';
 
 export interface ExternalNavigationSource {
-    panelKind?: 'workflow-board' | 'agent-workbench' | 'proxy' | 'unknown';
+    panelKind?: 'workflow-board' | 'agent-workbench' | 'workflow-tree' | 'proxy' | 'unknown';
     workflowId?: string;
     workflowName?: string;
     sessionId?: string;
