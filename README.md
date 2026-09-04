@@ -18,6 +18,7 @@
 [![Sponsor](https://img.shields.io/github/sponsors/EtienneLescot?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/EtienneLescot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
+<a href="https://trendshift.io/repositories/22772?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-22772" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/22772" alt="EtienneLescot/n8n-as-code | Trendshift" width="250" height="55"/></a>
 <a href="https://trendshift.io/developers/12646?utm_source=developer-badge&amp;utm_medium=badge&amp;utm_campaign=badge-developer-12646" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/developers/12646" alt="EtienneLescot | Trendshift" width="250" height="55"/></a>
 
 <br>
