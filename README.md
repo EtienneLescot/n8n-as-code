@@ -6,6 +6,8 @@
 
 **VS Code / Cursor Agent · n8n Environments · n8n-manager · GitOps · AI Skills · TypeScript Workflows**
 
+<a href="https://trendshift.io/repositories/22772?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-22772" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/22772" alt="EtienneLescot%2Fn8n-as-code | Trendshift" width="250" height="55"/></a>
+
 [![CI](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml/badge.svg)](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/ci.yml)
 [![Documentation](https://github.com/EtienneLescot/n8n-as-code/actions/workflows/docs.yml/badge.svg)](https://n8nascode.dev/)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/etienne-lescot.n8n-as-code?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code)
