@@ -45,6 +45,11 @@ export type {
     ValidationWarning
 } from './types.js';
 
+export {
+    KNOWN_NODE_METADATA_KEYS,
+    INTERNAL_AST_NODE_KEYS
+} from './types.js';
+
 // Utilities
 export {
     generatePropertyName,

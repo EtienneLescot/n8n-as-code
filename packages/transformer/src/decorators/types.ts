@@ -80,6 +80,12 @@ export interface NodeDecoratorMetadata {
 
     /** Display notes directly on the workflow canvas */
     notesInFlow?: boolean;
+
+    /** Continue workflow execution even if this node fails (legacy onError equivalent) */
+    continueOnFail?: boolean;
+
+    /** Passthrough for unmodelled node properties */
+    [key: string]: any;
 }
 
 export type NodeDecoratorOptions = NodeDecoratorMetadata;

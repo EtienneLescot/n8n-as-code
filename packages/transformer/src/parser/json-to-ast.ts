@@ -4,7 +4,7 @@
  * Converts n8n workflow JSON to intermediate AST representation
  */
 
-import { N8nWorkflow, WorkflowAST, NodeAST, ConnectionAST, PropertyNameContext, AI_ARRAY_ROLES, AI_SINGLE_ROLES } from '../types.js';
+import { N8nWorkflow, WorkflowAST, NodeAST, ConnectionAST, PropertyNameContext, AI_ARRAY_ROLES, AI_SINGLE_ROLES, KNOWN_NODE_METADATA_KEYS } from '../types.js';
 import { createPropertyNameContext, generatePropertyName } from '../utils/naming.js';
 
 // AI connection types are handled separately by extractAIDependencies()
@@ -80,6 +80,16 @@ export class JsonToAstParser {
      * Parse single node
      */
     private parseNode(node: any, propertyName: string): NodeAST {
+        const handledKeys = new Set<string>(KNOWN_NODE_METADATA_KEYS);
+        handledKeys.add('parameters');
+
+        const extraProps: Record<string, any> = {};
+        for (const [key, value] of Object.entries(node)) {
+            if (!handledKeys.has(key) && value !== undefined) {
+                extraProps[key] = value;
+            }
+        }
+
         return {
             propertyName,
             ...(node.id && { id: node.id }),
@@ -99,6 +109,8 @@ export class JsonToAstParser {
             ...(node.disabled !== undefined && { disabled: node.disabled }),
             ...(node.notes !== undefined && { notes: node.notes }),
             ...(node.notesInFlow !== undefined && { notesInFlow: node.notesInFlow }),
+            ...(node.continueOnFail !== undefined && { continueOnFail: node.continueOnFail }),
+            ...extraProps,
         };
     }
     

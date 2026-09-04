@@ -4,7 +4,7 @@
  * Builds n8n workflow JSON from extracted TypeScript metadata
  */
 
-import { WorkflowAST, N8nWorkflow, N8nNode, N8nConnections, NodeAST, ConnectionAST, AI_ARRAY_ROLES, AI_SINGLE_ROLES } from '../types.js';
+import { WorkflowAST, N8nWorkflow, N8nNode, N8nConnections, NodeAST, ConnectionAST, AI_ARRAY_ROLES, AI_SINGLE_ROLES, KNOWN_NODE_METADATA_KEYS, INTERNAL_AST_NODE_KEYS } from '../types.js';
 import { randomUUID } from 'crypto';
 import { createHash } from 'crypto';
 
@@ -111,6 +111,20 @@ export class WorkflowBuilder {
             }
             if (node.notesInFlow !== undefined) {
                 n8nNode.notesInFlow = node.notesInFlow;
+            }
+            if (node.continueOnFail !== undefined) {
+                n8nNode.continueOnFail = node.continueOnFail;
+            }
+
+            const handledKeys = new Set<string>([
+                ...KNOWN_NODE_METADATA_KEYS,
+                ...INTERNAL_AST_NODE_KEYS
+            ]);
+
+            for (const [key, value] of Object.entries(node)) {
+                if (!handledKeys.has(key) && value !== undefined) {
+                    (n8nNode as any)[key] = value;
+                }
             }
             
             return n8nNode;
