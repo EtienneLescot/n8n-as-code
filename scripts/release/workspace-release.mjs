@@ -129,7 +129,9 @@ const CROSS_PACKAGE_RULES = [
   },
   {
     matches(file) {
-      return file === '.github/workflows/prerelease.yml' || file === '.github/workflows/promote.yml';
+      return file === '.github/workflows/release.yml'
+        || file === '.github/workflows/prerelease.yml'
+        || file === '.github/workflows/promote.yml';
     },
     packages: ['@n8n-as-code/skills'],
   },
