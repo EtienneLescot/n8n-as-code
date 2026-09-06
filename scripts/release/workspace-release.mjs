@@ -241,6 +241,25 @@ function incrementVersion(version, bump) {
   return nextVersion;
 }
 
+function getNextEvenMinor(minor) {
+  return minor % 2 === 0 ? minor + 2 : minor + 1;
+}
+
+function buildNextVscodeStableVersion(version, bump) {
+  if (bump === 'major') {
+    return {
+      major: version.major + 1,
+      minor: 0,
+      patch: 0,
+    };
+  }
+  return {
+    major: version.major,
+    minor: getNextEvenMinor(version.minor),
+    patch: 0,
+  };
+}
+
 function maxBump(left, right) {
   const leftPriority = BUMP_PRIORITY[left || 'none'];
   const rightPriority = BUMP_PRIORITY[right || 'none'];
@@ -696,6 +715,14 @@ function computeStablePlan() {
     const changed = Boolean(bumpInfo.bump) || versionAheadOfTag || initialRelease || releaseTrainChanged;
     const targetVersion = releaseTrain
       ? releaseTrain.version
+      : pkg.publishTarget === 'vscode'
+      ? (
+          versionAheadOfTag
+            ? currentStableString
+            : changed
+            ? formatVersion(buildNextVscodeStableVersion(currentStableVersion, bumpInfo.bump))
+            : currentStableString
+        )
       : (bumpInfo.bump ? formatVersion(incrementVersion(currentStableVersion, bumpInfo.bump)) : currentStableString);
     const reasons = [...bumpInfo.reasons];
     const commits = [...directInfo.commits];

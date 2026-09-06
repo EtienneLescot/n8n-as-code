@@ -263,6 +263,16 @@ jobs:
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('packages/vscode-extension/package.json', 'utf8'));
             delete pkg.private;
+            // VS Marketplace requires major.minor.patch without prerelease suffixes.
+            // Map 2.42.0-rc.1 to 2.41.1 (odd minor pre-release sequence).
+            const match = /^(\d+)\.(\d+)\.\d+(?:-rc\.(\d+))?$/.exec(pkg.version);
+            if (match) {
+              const major = Number(match[1]);
+              const minor = Number(match[2]);
+              const rc = match[3] ? Number(match[3]) : 1;
+              const oddMinor = minor % 2 === 0 ? minor - 1 : minor;
+              pkg.version = \`\${major}.\${oddMinor}.\${rc}\`;
+            }
             fs.writeFileSync('packages/vscode-extension/package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
 
