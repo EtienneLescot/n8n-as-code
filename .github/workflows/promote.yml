@@ -34,6 +34,7 @@ jobs:
     environment: prod
     env:
       GITHUB_TOKEN: ${{ github.token }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
       N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
       N8NAC_TELEMETRY_ENV: prod
@@ -182,6 +183,8 @@ jobs:
           echo "changed=$CHANGED" >> "$GITHUB_OUTPUT"
 
       - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           should_publish() {
             node -e "const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('promote-plan.json','utf8')); const pkg=plan.packages.find(item => item.name === process.argv[1]); process.exit(pkg && pkg.changed ? 0 : 1);" "$1"
