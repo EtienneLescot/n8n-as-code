@@ -1,6 +1,6 @@
 {
     "name": "@n8n-as-code/transformer",
-    "version": "2.0.0",
+    "version": "2.0.1-rc.1",
     "description": "Bidirectional transformer: n8n JSON workflows ↔ TypeScript",
     "type": "module",
     "license": "MIT",

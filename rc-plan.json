@@ -1,0 +1,466 @@
+{
+  "mode": "rc",
+  "changed": true,
+  "rcNumber": 1,
+  "releaseVersion": "2.6.0-rc.1",
+  "packages": [
+    {
+      "name": "@n8n-as-code/transformer",
+      "path": "packages/transformer",
+      "packageJsonPath": "packages/transformer/package.json",
+      "changelogPath": "packages/transformer/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/transformer@",
+      "internalDependencies": [],
+      "currentVersion": "2.0.0",
+      "latestStableTag": "@n8n-as-code/transformer@v2.0.0",
+      "latestStableVersion": "2.0.0",
+      "bump": "patch",
+      "directBump": "patch",
+      "changed": true,
+      "targetVersion": "2.0.1",
+      "commits": [
+        {
+          "sha": "e03e4482b21522f04ee625abf666c44201e05ced",
+          "subject": "fix(transformer): persist continueOnFail and pass through unmodelled node properties",
+          "bump": "patch"
+        },
+        {
+          "sha": "f0d701cb4b96b5e4a145331bbbb78097615a46b7",
+          "subject": "fix(transformer): allow several sub-nodes on one AI input type",
+          "bump": "patch"
+        },
+        {
+          "sha": "904951b99c886b81a4c180270f33ecfbd8ec84bd",
+          "subject": "fix(transformer): persist disabled, notes and notesInFlow through workflow round-trip",
+          "bump": "patch"
+        }
+      ],
+      "reasons": [
+        "direct"
+      ],
+      "rcVersion": "2.0.1-rc.1"
+    },
+    {
+      "name": "@n8n-as-code/telemetry",
+      "path": "packages/telemetry",
+      "packageJsonPath": "packages/telemetry/package.json",
+      "changelogPath": "packages/telemetry/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/telemetry@",
+      "internalDependencies": [],
+      "currentVersion": "2.0.1",
+      "latestStableTag": "@n8n-as-code/telemetry@v2.0.1",
+      "latestStableVersion": "2.0.1",
+      "bump": null,
+      "directBump": null,
+      "changed": false,
+      "targetVersion": "2.0.1",
+      "commits": [],
+      "reasons": [],
+      "rcVersion": null
+    },
+    {
+      "name": "@n8n-as-code/workflow-core",
+      "path": "packages/workflow-core",
+      "packageJsonPath": "packages/workflow-core/package.json",
+      "changelogPath": "packages/workflow-core/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/workflow-core@",
+      "internalDependencies": [
+        "@n8n-as-code/transformer"
+      ],
+      "currentVersion": "2.0.0",
+      "latestStableTag": "@n8n-as-code/workflow-core@v2.0.0",
+      "latestStableVersion": "2.0.0",
+      "bump": "patch",
+      "directBump": null,
+      "changed": true,
+      "targetVersion": "2.0.1",
+      "commits": [],
+      "reasons": [
+        "dependency:@n8n-as-code/transformer"
+      ],
+      "rcVersion": "2.0.1-rc.1"
+    },
+    {
+      "name": "@n8n-as-code/manager-adapter",
+      "path": "packages/manager-adapter",
+      "packageJsonPath": "packages/manager-adapter/package.json",
+      "changelogPath": "packages/manager-adapter/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/manager-adapter@",
+      "internalDependencies": [
+        "@n8n-as-code/workflow-core"
+      ],
+      "currentVersion": "2.0.4",
+      "latestStableTag": "@n8n-as-code/manager-adapter@v2.0.4",
+      "latestStableVersion": "2.0.4",
+      "bump": "patch",
+      "directBump": null,
+      "changed": true,
+      "targetVersion": "2.0.5",
+      "commits": [],
+      "reasons": [
+        "dependency:@n8n-as-code/workflow-core"
+      ],
+      "rcVersion": "2.0.5-rc.1"
+    },
+    {
+      "name": "@n8n-as-code/skills",
+      "path": "packages/skills",
+      "packageJsonPath": "packages/skills/package.json",
+      "changelogPath": "packages/skills/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/skills@",
+      "internalDependencies": [
+        "@n8n-as-code/telemetry",
+        "@n8n-as-code/transformer"
+      ],
+      "currentVersion": "2.3.2",
+      "latestStableTag": "@n8n-as-code/skills@v2.3.2",
+      "latestStableVersion": "2.3.2",
+      "bump": "minor",
+      "directBump": "minor",
+      "changed": true,
+      "targetVersion": "2.4.0",
+      "commits": [
+        {
+          "sha": "48821f77664641394df786dff9f6daa7e6916a24",
+          "subject": "fix(release): restore VS Code even/odd minor versioning for Marketplace compatibility",
+          "bump": "patch"
+        },
+        {
+          "sha": "b84b0ad7a7bccf3ace70f6200747fa1e50eaae7a",
+          "subject": "fix(release): wire NODE_AUTH_TOKEN with NPM_TOKEN for npm publishing in release workflows",
+          "bump": "patch"
+        },
+        {
+          "sha": "a74dd4768bdaccc9a410768f194b5cfd3c8d5567",
+          "subject": "fix(skills): update knowledge base for n8n@2.37.10",
+          "bump": "patch"
+        },
+        {
+          "sha": "149ed13b5d36840f94d161ffbaf2bae4f799498d",
+          "subject": "fix(release): bump Node.js to 22 in release workflows to satisfy openclaw engine requirements",
+          "bump": "patch"
+        },
+        {
+          "sha": "5ffb548252726807d3edee5902743f8d6ab6753c",
+          "subject": "fix(release): pin the release line on re-cuts, keep RC tags immutable, strict rc numbers",
+          "bump": "patch"
+        },
+        {
+          "sha": "b9bf114f560e126472e211b8d1db990390b2aa0a",
+          "subject": "fix(release): address review — input routing, tag/head equality, bump floor, sync PR polling",
+          "bump": "patch"
+        },
+        {
+          "sha": "a9072d08dc456bfda7174541f677f07e623a156d",
+          "subject": "feat(release): adopt the openscreen RC model — main-only merges, rc cuts, manual promote",
+          "bump": "minor"
+        },
+        {
+          "sha": "9f8ef45329c048a9d408e7a33624cc8758eb4ace",
+          "subject": "fix(skills): update knowledge base for n8n@2.37.7",
+          "bump": "patch"
+        },
+        {
+          "sha": "a8ae0356c83c0c28fed8d21de50e96dd77b2a867",
+          "subject": "fix(skills): minify credential ontology and document formatMb",
+          "bump": "patch"
+        },
+        {
+          "sha": "ce5a0bc9ad74d8d132979ea8f0c59475401a6f49",
+          "subject": "fix(skills): harden the packaging scripts per review",
+          "bump": "patch"
+        },
+        {
+          "sha": "255301e458408c972672d5f9462828c509d5f629",
+          "subject": "fix(@n8n-as-code/skills): stop publishing build intermediates and minify generated assets",
+          "bump": "patch"
+        },
+        {
+          "sha": "7637c2e931718b51f9de000cfa990b121ba3f820",
+          "subject": "fix(skills): fix false-positive validation for multiOptions, versioned options and defaults",
+          "bump": "patch"
+        },
+        {
+          "sha": "3167e7ae972b4c993e95ac83a7582cc42278e7e2",
+          "subject": "fix(skills): resolve the custom-nodes sidecar from the workspace root",
+          "bump": "patch"
+        },
+        {
+          "sha": "27bbb0bc970e1c1ba76ad0aa1460cba077224a73",
+          "subject": "fix(skills): resolve node schemas by full type, not short name",
+          "bump": "patch"
+        },
+        {
+          "sha": "e86829c26f724413ffdbd60a5ca50922df90fdae",
+          "subject": "fix(skills): report malformed ai_languageModel connections",
+          "bump": "patch"
+        },
+        {
+          "sha": "c319fdb4a4c89bef4a22b3f969c4115da8bee2ab",
+          "subject": "fix(skills): count only enabled models toward the needsFallback input",
+          "bump": "patch"
+        },
+        {
+          "sha": "d2b818e71ed404e867b2b3925d4b0d5913e200a4",
+          "subject": "docs(skills): document arrays on single-valued AI roles",
+          "bump": "patch"
+        },
+        {
+          "sha": "659019d5133cd38008cfd8cefb4a1bc019a7f05e",
+          "subject": "fix(skills): import the adapter generator as a file URL",
+          "bump": "patch"
+        },
+        {
+          "sha": "0656b5a383a5959a55a7beb600d391fbd945ce8d",
+          "subject": "fix(skills): reject needsFallback: true without a fallback model",
+          "bump": "patch"
+        },
+        {
+          "sha": "d32ff515d949f51c54e535b8354930dd3f7f4208",
+          "subject": "feat(cli): warn that push releases published workflows, add --draft",
+          "bump": "minor"
+        },
+        {
+          "sha": "9ff50bf68fa66f016fc8eab5a38257d81baa906d",
+          "subject": "fix(skills): omit generated context root path",
+          "bump": "patch"
+        },
+        {
+          "sha": "c2a9f9017a53419e30e15c9b0de21f6040c75331",
+          "subject": "fix(skills): generate worktree-safe agent guidance",
+          "bump": "patch"
+        },
+        {
+          "sha": "5ba5247dadca1294db641b260859863252bbf48a",
+          "subject": "fix(skills): update knowledge base for n8n@2.36.8",
+          "bump": "patch"
+        }
+      ],
+      "reasons": [
+        "direct"
+      ],
+      "rcVersion": "2.4.0-rc.1"
+    },
+    {
+      "name": "n8nac",
+      "path": "packages/cli",
+      "packageJsonPath": "packages/cli/package.json",
+      "changelogPath": "packages/cli/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "n8nac@",
+      "internalDependencies": [
+        "@n8n-as-code/manager-adapter",
+        "@n8n-as-code/mcp",
+        "@n8n-as-code/skills",
+        "@n8n-as-code/telemetry",
+        "@n8n-as-code/transformer",
+        "@n8n-as-code/workflow-core"
+      ],
+      "currentVersion": "2.5.0",
+      "latestStableTag": "n8nac@v2.5.0",
+      "latestStableVersion": "2.5.0",
+      "bump": "minor",
+      "directBump": "minor",
+      "changed": true,
+      "targetVersion": "2.6.0",
+      "commits": [
+        {
+          "sha": "e03e4482b21522f04ee625abf666c44201e05ced",
+          "subject": "fix(transformer): persist continueOnFail and pass through unmodelled node properties",
+          "bump": "patch"
+        },
+        {
+          "sha": "95d16a41f1e0f6a22a802dc2d142c916a362fb96",
+          "subject": "fix(cli): block folderAuth over cleartext non-loopback HTTP without opt-in",
+          "bump": "patch"
+        },
+        {
+          "sha": "db1592203d001e35d86decf3f72dee2abe8e0862",
+          "subject": "fix(cli): resolve CodeRabbit review feedback on fail-closed rethrow, login redirect and password flags",
+          "bump": "patch"
+        },
+        {
+          "sha": "d166babdb9b3308f91295301742693e298e6e1d5",
+          "subject": "fix(cli): resolve review feedback on folder-login scoping and 403 license degrade",
+          "bump": "patch"
+        },
+        {
+          "sha": "9b80f1b7d7b0583d13553d1c5f5aa7142134b9e6",
+          "subject": "feat(cli): mark folder-login as experimental and document SSO/2FA workaround",
+          "bump": "minor"
+        },
+        {
+          "sha": "fe0fb5c779824916bd1072306bcbbf5bcc6a7b3e",
+          "subject": "feat(cli): optional /rest session folder-source for folderSync pull",
+          "bump": "minor"
+        },
+        {
+          "sha": "8251010c119e0c669ab40ed3e44425d7df1d862c",
+          "subject": "fix(cli): remove duplicate workflowRelativePathToAbsolute declaration",
+          "bump": "patch"
+        },
+        {
+          "sha": "ce2a1103de1c8335effd7fab75c6925a692c8246",
+          "subject": "fix(cli): update state filename on rename and prioritize disk scan",
+          "bump": "patch"
+        },
+        {
+          "sha": "a2cebca15eb886a950528a779c56c65ff0caf6ac",
+          "subject": "fix(cli): let uses() accept an array on single-valued AI roles",
+          "bump": "patch"
+        },
+        {
+          "sha": "46c372eca4ab9e7cfb877ac69584c8ec6c80380e",
+          "subject": "fix(cli): exit non-zero when push encounters conflict",
+          "bump": "patch"
+        },
+        {
+          "sha": "904951b99c886b81a4c180270f33ecfbd8ec84bd",
+          "subject": "fix(transformer): persist disabled, notes and notesInFlow through workflow round-trip",
+          "bump": "patch"
+        },
+        {
+          "sha": "2a0e0ab4c1caceb0fb8a8864051052ca48fe54eb",
+          "subject": "fix(cli): reconcile local state before attempting the draft re-pin",
+          "bump": "patch"
+        },
+        {
+          "sha": "706971154de51d2baa213975856527cc51fa5347",
+          "subject": "fix: repair mojibake em-dashes, drop BOM, label code fences",
+          "bump": "patch"
+        },
+        {
+          "sha": "d32ff515d949f51c54e535b8354930dd3f7f4208",
+          "subject": "feat(cli): warn that push releases published workflows, add --draft",
+          "bump": "minor"
+        }
+      ],
+      "reasons": [
+        "direct"
+      ],
+      "rcVersion": "2.6.0-rc.1"
+    },
+    {
+      "name": "@n8n-as-code/mcp",
+      "path": "packages/mcp",
+      "packageJsonPath": "packages/mcp/package.json",
+      "changelogPath": "packages/mcp/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/mcp@",
+      "internalDependencies": [
+        "@n8n-as-code/telemetry",
+        "n8nac"
+      ],
+      "currentVersion": "2.1.2",
+      "latestStableTag": "@n8n-as-code/mcp@v2.1.2",
+      "latestStableVersion": "2.1.2",
+      "bump": "patch",
+      "directBump": null,
+      "changed": true,
+      "targetVersion": "2.1.3",
+      "commits": [],
+      "reasons": [
+        "dependency:n8nac"
+      ],
+      "rcVersion": "2.1.3-rc.1"
+    },
+    {
+      "name": "n8n-as-code",
+      "path": "packages/vscode-extension",
+      "packageJsonPath": "packages/vscode-extension/package.json",
+      "changelogPath": "packages/vscode-extension/CHANGELOG.md",
+      "publishTarget": "vscode",
+      "tagPrefix": "n8n-as-code@",
+      "internalDependencies": [
+        "@n8n-as-code/manager-adapter",
+        "@n8n-as-code/skills",
+        "@n8n-as-code/telemetry",
+        "@n8n-as-code/workflow-core",
+        "n8nac"
+      ],
+      "currentVersion": "2.40.0",
+      "latestStableTag": "n8n-as-code@v2.40.0",
+      "latestStableVersion": "2.40.0",
+      "bump": "patch",
+      "directBump": "patch",
+      "changed": true,
+      "targetVersion": "2.42.0",
+      "commits": [
+        {
+          "sha": "be613f806bdf3b1fe794e176dce3bc2d6fbd0ff4",
+          "subject": "fix(vscode-extension): add 'workflow-tree' to ExternalNavigationSource panelKind",
+          "bump": "patch"
+        },
+        {
+          "sha": "2af664d953dc7a64d305607f98b5f4d69796036a",
+          "subject": "fix(vscode-extension): strip n8n-auth from IdP proxy requests and route browser opens through navigation broker",
+          "bump": "patch"
+        },
+        {
+          "sha": "da3c83856aa178731ae717bc9a627fce4763317f",
+          "subject": "fix(vscode-extension): enforce TLS verification and restrict credential forwarding to secure transports",
+          "bump": "patch"
+        },
+        {
+          "sha": "03076cf172423b18347b7e29a51cb01c80c3a81a",
+          "subject": "fix(vscode-extension): address PR review feedback on SSO flow, URL resolution and modal accessibility",
+          "bump": "patch"
+        },
+        {
+          "sha": "e1d74f20c21c37742dc9f098e761e9609ba45667",
+          "subject": "fix(vscode-extension): resolve SSO auth black screen, add open in browser and session token support",
+          "bump": "patch"
+        }
+      ],
+      "reasons": [
+        "direct"
+      ],
+      "rcVersion": "2.42.0-rc.1"
+    },
+    {
+      "name": "@n8n-as-code/n8nac",
+      "path": "plugins/openclaw/n8n-as-code",
+      "packageJsonPath": "plugins/openclaw/n8n-as-code/package.json",
+      "changelogPath": "plugins/openclaw/n8n-as-code/CHANGELOG.md",
+      "publishTarget": "npm",
+      "tagPrefix": "@n8n-as-code/n8nac@",
+      "internalDependencies": [
+        "@n8n-as-code/telemetry",
+        "@n8n-as-code/workflow-core"
+      ],
+      "currentVersion": "2.2.1",
+      "latestStableTag": "@n8n-as-code/n8nac@v2.2.1",
+      "latestStableVersion": "2.2.1",
+      "bump": "minor",
+      "directBump": "minor",
+      "changed": true,
+      "targetVersion": "2.3.0",
+      "commits": [
+        {
+          "sha": "659019d5133cd38008cfd8cefb4a1bc019a7f05e",
+          "subject": "fix(skills): import the adapter generator as a file URL",
+          "bump": "patch"
+        },
+        {
+          "sha": "d32ff515d949f51c54e535b8354930dd3f7f4208",
+          "subject": "feat(cli): warn that push releases published workflows, add --draft",
+          "bump": "minor"
+        },
+        {
+          "sha": "14395f58e02250cf0c5ccf765e3f96d02f7800bd",
+          "subject": "fix(build): migrate openclaw plugin to subpath export and pin openclaw",
+          "bump": "patch"
+        }
+      ],
+      "reasons": [
+        "direct"
+      ],
+      "rcVersion": "2.3.0-rc.1"
+    }
+  ]
+}

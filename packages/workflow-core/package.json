@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/workflow-core",
-  "version": "2.0.0",
+  "version": "2.0.1-rc.1",
   "description": "n8n-as-code workflow intelligence contracts and public workflow authoring API",
   "type": "module",
   "main": "./dist/index.js",
@@ -24,7 +24,7 @@
     "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@n8n-as-code/transformer": "2.0.0"
+    "@n8n-as-code/transformer": "2.0.1-rc.1"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

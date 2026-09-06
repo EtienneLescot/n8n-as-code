@@ -1,6 +1,6 @@
 {
   "name": "@n8n-as-code/n8nac",
-  "version": "2.2.1",
+  "version": "2.3.0-rc.1",
   "description": "OpenClaw plugin for n8n-as-code — create and manage n8n workflows from OpenClaw",
   "keywords": [
     "n8n",
@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@n8n-as-code/telemetry": "2.0.1",
-    "@n8n-as-code/workflow-core": "2.0.0"
+    "@n8n-as-code/workflow-core": "2.0.1-rc.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
