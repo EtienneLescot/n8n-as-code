@@ -125,6 +125,19 @@ Use `promote` to move workflow source from one environment `workflowsPath` to an
 
 [CLI guide](https://n8nascode.dev/docs/usage/cli/) · [n8n-manager guide](https://n8nascode.dev/docs/usage/n8n-manager/)
 
+### Prereleases
+
+To test upcoming features before they hit the stable release, append `@next` to any CLI/npm command or switch to the pre-release channel in your editor:
+
+- **CLI**: `npm install -g n8nac@next` or run on demand with `npx --yes n8nac@next <command>`
+- **VS Code / Cursor**: Click **"Switch to Pre-Release Version"** on the [Marketplace](https://marketplace.visualstudio.com/items?itemName=etienne-lescot.n8n-as-code) or run:
+  ```bash
+  code --install-extension etienne-lescot.n8n-as-code --pre-release
+  ```
+- **OpenClaw**: `openclaw plugins install @n8n-as-code/n8nac@next`
+
+> **Note**: When testing prereleases, keep all entry points on the `@next` tag so that the extension, CLI, and agent skills remain aligned.
+
 ## Command Groups
 
 ### Primary Usage: `n8nac env`
@@ -230,6 +243,8 @@ n8nac convert-batch workflows/ --format typescript
 | **[Agent Skills](skills)** | Portable AI skills and embedded n8n knowledge for agents | [repo skills directory](https://github.com/EtienneLescot/n8n-as-code/tree/main/skills) |
 | **[@n8n-as-code/n8nac](plugins/openclaw/n8n-as-code)** | OpenClaw plugin with prompt context and portable skills | `openclaw plugins install @n8n-as-code/n8nac` |
 | **[@n8n-as-code/transformer](packages/transformer)** | JSON to TypeScript workflow converter and back | `npm i @n8n-as-code/transformer` |
+
+> **Prereleases**: Append `@next` to test any package or plugin before release (e.g. `npx n8nac@next`, `npm i @n8n-as-code/transformer@next`).
 
 ## How The Pieces Fit
 
