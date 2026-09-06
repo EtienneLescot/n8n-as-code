@@ -57,6 +57,8 @@ jobs:
       N8NAC_POSTHOG_KEY: ${{ vars.N8NAC_POSTHOG_KEY }}
       N8NAC_POSTHOG_HOST: ${{ vars.N8NAC_POSTHOG_HOST }}
       N8NAC_TELEMETRY_ENV: rc
+      PRERELEASE: 'true'
+      N8NAC_DIST_TAG: next
       RC_BUMP: ${{ inputs.bump || 'minor' }}
       RC_NUMBER: ${{ inputs.rc_number || '1' }}
       RC_TARGET_VERSION: ${{ inputs.target_version }}
@@ -201,18 +203,21 @@ jobs:
           publish_npm() {
             local pkg_name="$1"
             local pkg_dir="$2"
-            local tag="rc"
+            local tag="next"
             local version
             local publish_log
             version=$(node -p "require('./${pkg_dir}/package.json').version")
             if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
-              echo "ℹ️ ${pkg_name}@${version} already exists on npm, skipping publish."
+              echo "ℹ️ ${pkg_name}@${version} already exists on npm, ensuring dist-tags."
+              npm dist-tag add "${pkg_name}@${version}" "$tag" 2>/dev/null || true
+              npm dist-tag add "${pkg_name}@${version}" rc 2>/dev/null || true
               return 0
             fi
             publish_log=$(mktemp)
             if (cd "$pkg_dir" && npm publish --access public --tag "$tag") >"$publish_log" 2>&1; then
               cat "$publish_log"
               rm -f "$publish_log"
+              npm dist-tag add "${pkg_name}@${version}" rc 2>/dev/null || true
               return 0
             fi
             cat "$publish_log"
@@ -220,11 +225,14 @@ jobs:
               if npm view "${pkg_name}@${version}" version >/dev/null 2>&1; then
                 echo "ℹ️ ${pkg_name}@${version} became visible on npm after a provenance conflict, continuing."
                 rm -f "$publish_log"
+                npm dist-tag add "${pkg_name}@${version}" "$tag" 2>/dev/null || true
+                npm dist-tag add "${pkg_name}@${version}" rc 2>/dev/null || true
                 return 0
               fi
               echo "⚠️ npm provenance transparency-log conflict for ${pkg_name}@${version}; retrying publish without provenance."
               rm -f "$publish_log"
               (cd "$pkg_dir" && npm publish --access public --tag "$tag" --provenance=false)
+              npm dist-tag add "${pkg_name}@${version}" rc 2>/dev/null || true
               return 0
             fi
             rm -f "$publish_log"

@@ -40,7 +40,8 @@ function resolveDistTag() {
   const explicit = process.env.N8NAC_SKILL_ADAPTER_DIST_TAG?.trim();
   if (explicit) return explicit;
 
-  return readCurrentBranch() === 'next' ? 'next' : 'stable';
+  const branch = readCurrentBranch();
+  return (branch === 'next' || branch?.startsWith('release/')) ? 'next' : 'stable';
 }
 
 const args = process.argv.slice(2);

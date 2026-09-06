@@ -31,17 +31,17 @@ What happens:
    as-is (rc.2+ — it carries your cherry-picks, never delete it).
 3. Every changed package is bumped to `X.Y.Z-rc.N` **on the release branch
    only** and committed with `[skip ci]`.
-4. Packages are published to npm with the `rc` dist-tag, the VS Code extension
-   is published as a `--pre-release` (Marketplace only — Open VSX never gets
+4. Packages are published to npm with the `next` dist-tag (and mirrored to `rc`),
+   the VS Code extension is published as a `--pre-release` (Marketplace only — Open VSX never gets
    RCs), the tag `vX.Y.Z-rc.N` is pushed, and a GitHub **prerelease** is
    created.
 
 Install an RC locally with:
 
 ```bash
-npm install n8nac@rc
+npm install n8nac@next
+# (or npm install n8nac@rc)
 ```
-
 ## Cherry-pick a fix during the RC window
 
 ```bash
@@ -51,7 +51,7 @@ git cherry-pick <fix-sha>
 git push origin release/vX.Y.Z
 ```
 
-Then re-run **Prerelease (RC)** with the same `bump`/`target_version` and
+Then re-run **Release** (`.github/workflows/release.yml` with `action: rc`) with the same `bump`/`target_version` and
 `rc_number` + 1. The re-cut re-publishes `-rc.N+1` including the fix.
 
 Note: the branch name is always the **stable** version (`release/v2.6.0`),
@@ -59,7 +59,7 @@ never suffixed with `-rc.N`. Suffixing the branch name breaks promote.
 
 ## Promote to stable
 
-Run the **Promote RC to Stable** workflow (`.github/workflows/promote.yml`)
+Run the **Release** workflow (`.github/workflows/release.yml` with `action: promote`)
 with `rc_tag` = the last validated RC (e.g. `v2.6.0-rc.2`). In order:
 
 1. The release branch is checked out and must contain the RC tag.
