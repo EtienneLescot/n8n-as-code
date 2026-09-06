@@ -111,6 +111,7 @@ jobs:
               echo "❌ $BRANCH does not exist. Re-cutting rc.$RC_NUMBER requires the branch created by rc.1 (it carries cherry-picks)."
               exit 1
             fi
+            rm -f rc-plan.json
             git checkout "$BRANCH"
           else
             git checkout -B "$BRANCH" origin/main
