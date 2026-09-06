@@ -177,12 +177,28 @@ const preserveManagerCoreEntrypointResolution = {
 // Detect whether this is a pre-release (next) build.
 // Stable builds → AGENTS.md will use `npx --yes n8nac <cmd>`
 // Pre-release builds → AGENTS.md will use `npx --yes n8nac@next <cmd>`
+const explicitTag = process.env.N8NAC_DIST_TAG?.trim();
+const isExplicitPreRelease = process.env.PRERELEASE === 'true';
 const githubRef = process.env.GITHUB_REF || '';
 let gitBranch = '';
 try {
     gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: __dirname, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
 } catch { /* ignore */ }
-const n8nacVersion = (githubRef.includes('next') || gitBranch === 'next') ? 'next' : '';
+
+let vscodeExtensionVersion = '';
+try {
+    vscodeExtensionVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '';
+} catch { /* ignore */ }
+const minorVersion = parseInt(vscodeExtensionVersion.split('.')[1] || '0', 10);
+const isOddMinor = !Number.isNaN(minorVersion) && minorVersion % 2 !== 0;
+
+const isPreRelease = isExplicitPreRelease ||
+    githubRef.includes('next') ||
+    gitBranch === 'next' ||
+    vscodeExtensionVersion.includes('-') ||
+    isOddMinor;
+
+const n8nacVersion = explicitTag || (isPreRelease ? 'next' : '');
 
 // Read the n8nac CLI semver for the AGENTS.md version stamp.
 let n8nacCliSemver = '';

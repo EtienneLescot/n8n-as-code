@@ -113,12 +113,12 @@ function resolveAdapterDistTag() {
     .map(readPackageVersion)
     .filter(Boolean);
 
-  if (packageVersions.some((version) => version.includes('-next'))) {
+  if (packageVersions.some((version) => version.includes('-next') || version.includes('-rc'))) {
     return 'next';
   }
 
   const branch = process.env.GITHUB_REF_NAME || process.env.BRANCH_NAME || readGitBranch();
-  return branch === 'next' ? 'next' : undefined;
+  return (branch === 'next' || branch?.startsWith('release/')) ? 'next' : undefined;
 }
 
 function readPackageVersion(packagePath) {
