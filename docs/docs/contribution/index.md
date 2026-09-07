@@ -131,11 +131,11 @@ If dependency alignment fails, run `npm run sync:deps`, review the manifest diff
 
 - All merges land on `main` — there is no `next` branch anymore.
 - Nothing is published automatically when code lands on `main`.
-- A maintainer cuts a release candidate with the **Prerelease (RC)** workflow (Actions → *Prerelease (RC)* → *Run workflow*): pick `patch`/`minor`/`major` and the RC number.
-  - This creates (rc.1) or reuses (rc.2+, it carries cherry-picks) the frozen branch `release/vX.Y.Z`, bumps every changed package to `X.Y.Z-rc.N` **on that branch only**, publishes them to npm under the `rc` dist-tag, publishes the VS Code extension as a pre-release, tags `vX.Y.Z-rc.N`, and opens a GitHub prerelease.
+- A maintainer cuts a release candidate with the **Release** workflow (Actions → *Release* → *Run workflow*, `action: rc`): pick `patch`/`minor`/`major` and the RC number.
+  - This creates (rc.1) or reuses (rc.2+, it carries cherry-picks) the frozen branch `release/vX.Y.Z`, bumps every changed package to `X.Y.Z-rc.N` **on that branch only**, publishes them to npm under the `next` dist-tag (mirrored to `rc`), publishes the VS Code extension as a pre-release, tags `vX.Y.Z-rc.N`, and opens a GitHub prerelease.
   - Packages without changes since their last stable tag are not re-published.
 - Bug fixes during the RC window are cherry-picked by a maintainer onto `release/vX.Y.Z`; re-running the workflow with the next RC number re-cuts and publishes `-rc.N+1`.
-- When the RC is validated, a maintainer runs the **Promote RC to Stable** workflow with the RC tag (e.g. `v2.6.0-rc.2`):
+- When the RC is validated, a maintainer runs the **Release** workflow (`action: promote`) with the RC tag (e.g. `v2.6.0-rc.2`):
   - Final versions and changelogs are written on the release branch, npm packages are published under `latest`, the VS Code extension goes stable on the Marketplace and Open VSX, per-package tags and the `vX.Y.Z` tag are pushed, and the GitHub release is marked latest.
   - `main` is then synchronized with the released versions through an automated sync pull request. Release branches are kept for forensics and backports.
 - The full operator runbook lives in [Release operations](/contribution/release).
@@ -145,13 +145,13 @@ If dependency alignment fails, run `npm run sync:deps`, review the manifest diff
 ```
 Maintainer merges PRs to main (conventional commits)
        ↓
-Maintainer dispatches "Prerelease (RC)"
-       → release/vX.Y.Z branch + vX.Y.Z-rc.N tag
-       → npm dist-tag rc + VS Code pre-release
-       ↓
+Maintainer dispatches "Release" (action: rc)
+        → release/vX.Y.Z branch + vX.Y.Z-rc.N tag
+        → npm dist-tags next + rc + VS Code pre-release
+        ↓
 Cherry-pick fixes onto release/vX.Y.Z, re-cut rc.N+1 if needed
-       ↓
-Maintainer dispatches "Promote RC to Stable" with the rc tag
+        ↓
+Maintainer dispatches "Release" (action: promote) with the rc tag
        ↓
 Stable release: npm latest + VS Code + Open VSX + tags + GitHub release
        ↓
@@ -162,7 +162,7 @@ Automated sync PR brings versions and changelogs back to main
 - **Never manually edit release versions in PRs by hand** unless you are intentionally repairing the release flow
 - **Use conventional commits** so the RC workflow can derive `major`, `minor`, or `patch` automatically
 - **Package-scoped `docs(...)` commits also count as patch releases** when they touch files inside a released package
-- **Prerelease versions are `X.Y.Z-rc.N`** — the VS Code even/odd minor scheme is retired; the extension follows plain semver with the same `-rc.N` suffixes
+- **Prerelease versions are `X.Y.Z-rc.N`** — on the VS Code Marketplace they ship as `X.(Y-1).N` under the even/odd minor scheme (even minor = stable, odd minor = pre-release); see [Release operations](/contribution/release)
 - **Internal dependencies are automatically discovered from package manifests and re-pinned** whenever an upstream package is bumped
 - **Use `npm run sync:deps`** before committing package manifest changes when the hook cannot run
 - **Use `npm run check:deps` or `npm run check-versions`** to verify all internal and n8n-manager dependency specs are up to date
@@ -192,7 +192,7 @@ Automated sync PR brings versions and changelogs back to main
 - [GitHub Repository](https://github.com/EtienneLescot/n8n-as-code)
 - [Issue Tracker](https://github.com/EtienneLescot/n8n-as-code/issues)
 - [Discussion Forum](https://github.com/EtienneLescot/n8n-as-code/discussions)
-- [Release Workflow](https://github.com/EtienneLescot/n8n-as-code/blob/main/.github/workflows/prerelease.yml)
+- [Release Workflow](https://github.com/EtienneLescot/n8n-as-code/blob/main/.github/workflows/release.yml)
 
 ## ❓ Need Help?
 

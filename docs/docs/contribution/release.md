@@ -13,7 +13,7 @@ automatically when code lands on `main`.
 
 ## Cut a release candidate
 
-Run the **Prerelease (RC)** workflow (`.github/workflows/prerelease.yml`) from
+Run the **Release** workflow (`.github/workflows/release.yml`, `action: rc`) from
 the Actions tab, on `main`:
 
 | Input | Meaning |
@@ -112,6 +112,11 @@ environment and re-adding its secrets.
 
 - A tag containing `-` (i.e. `-rc.N`) is a prerelease everywhere: npm dist-tag
   `rc`, VS Code `--pre-release`, GitHub prerelease.
+- VS Code Marketplace versions must be plain `major.minor.patch` and strictly
+  increasing. RCs are mapped `X.Y.Z-rc.N` → `X.(Y-1).N` on the odd minor below
+  the stable line (even minor = stable, odd minor = pre-release). RC numbers
+  only move forward, so pre-release versions always increase; re-publishing an
+  existing version is skipped safely by the workflow, never forced.
 - Every published version must equal the workflow's computed target — promote
   re-asserts each package version before publishing.
 - Versions and changelogs live on release branches; `main` receives them only
