@@ -85,6 +85,10 @@ export class InstanceMcpClient {
                     headers,
                     body: JSON.stringify(payload),
                     signal: controller.signal,
+                    // Fail closed on redirects: a cross-origin 307/308 would
+                    // otherwise forward the POST body, the session identifier
+                    // and (same-origin) auth headers to another destination.
+                    redirect: 'error',
                 });
                 const text = await response.text();
                 sessionId = response.headers.get('mcp-session-id') || sessionId;
@@ -131,7 +135,7 @@ export class InstanceMcpClient {
                     'mcp-session-id': sessionId,
                 };
                 if (token) headers.Authorization = `Bearer ${token}`;
-                await fetch(endpoint, { method: 'DELETE', headers, signal: controller.signal });
+                await fetch(endpoint, { method: 'DELETE', headers, signal: controller.signal, redirect: 'error' });
             } catch {
                 // Best-effort cleanup; must never mask the tool result.
             } finally {
