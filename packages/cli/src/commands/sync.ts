@@ -103,8 +103,9 @@ export class SyncCommand extends BaseCommand {
         // is authoritative. A workflow whose nodes the instance rejects must never
         // be deployed — n8n would store it, but it would be broken in the UI and
         // fail at run time. Escalate to "push anyway" with N8NAC_PUSH_SKIP_VALIDATION=1.
+        const level = effectiveNativeMcpLevel(this.activeEnvironment?.nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL);
         if (absolutePath) {
-            const outcome = await this.runPrePushValidation(absolutePath);
+            const outcome = await this.runPrePushValidation(absolutePath, level);
             if (outcome) {
                 if (!outcome.valid) {
                     if (basename && workflowId) {
@@ -150,6 +151,9 @@ export class SyncCommand extends BaseCommand {
         try {
             const finalWorkflowId = await syncManager.push(filename, { draft: options?.draft === true });
             spinner.succeed(chalk.green(`✔ Pushed workflow ${filename}.`));
+            if (level === 0) {
+                console.log(chalk.dim(`   Validated against the bundled schema only (native MCP level 0 — discouraged, the instance may differ). Connect the instance MCP for instance-exact validation: n8nac native-mcp configure --level 1.`));
+            }
             this.reportPublishState(publishReport, finalWorkflowId);
             return finalWorkflowId;
         } catch (e: any) {
@@ -316,6 +320,9 @@ export class SyncCommand extends BaseCommand {
             console.log(chalk.red('❌ Workflow has errors that will cause problems in n8n.'));
             console.log(chalk.dim('   Fix the issues locally, then push again.'));
         }
+        if (effectiveNativeMcpLevel(this.activeEnvironment?.nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL) === 0) {
+            console.log(chalk.dim('   Validated against the bundled schema only (native MCP level 0 — discouraged, the instance may differ). Connect the instance MCP for instance-exact validation: n8nac native-mcp configure --level 1.'));
+        }
 
         return result.valid;
     }
@@ -336,7 +343,7 @@ export class SyncCommand extends BaseCommand {
      * file cannot be compiled locally — the push itself then reports the real
      * compile error).
      */
-    private async runPrePushValidation(absolutePath: string): Promise<Awaited<ReturnType<PreflightNodeValidator['validateFile']>> | null> {
+    private async runPrePushValidation(absolutePath: string, level?: number): Promise<Awaited<ReturnType<PreflightNodeValidator['validateFile']>> | null> {
         if (/^(1|true|yes|on)$/i.test(process.env.N8NAC_PUSH_SKIP_VALIDATION || '')) {
             return null;
         }
@@ -344,11 +351,11 @@ export class SyncCommand extends BaseCommand {
         const environment = this.activeEnvironment;
         const host = environment?.host || this.config?.host;
         const nativeMcp = environment?.nativeMcp;
-        const level = effectiveNativeMcpLevel(nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL);
+        const resolvedLevel = level ?? effectiveNativeMcpLevel(nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL);
 
         const validatorOptions: PreflightNodeValidatorOptions = {};
 
-        if (level >= 1 && host) {
+        if (resolvedLevel >= 1 && host) {
             const endpoint = nativeMcp?.url || `${host.replace(/\/+$/, '')}/mcp-server/http`;
             let token: string | undefined;
             try {
@@ -358,7 +365,7 @@ export class SyncCommand extends BaseCommand {
             }
             const timeoutMs = nativeMcp?.timeoutMs ?? 10000;
 
-            if (level >= 2) {
+            if (resolvedLevel >= 2) {
                 validatorOptions.endpoint = endpoint;
                 validatorOptions.token = token;
                 validatorOptions.timeoutMs = timeoutMs;

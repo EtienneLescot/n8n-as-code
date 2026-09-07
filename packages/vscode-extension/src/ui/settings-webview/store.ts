@@ -27,6 +27,7 @@ export interface EnvironmentDraft {
   nativeMcpUrl: string;
   nativeMcpToken: string;
   nativeMcpTokenAvailable?: boolean;
+  nativeMcpLevel: string;
   nativeMcpAllowExecutionData: boolean;
   nativeMcpAllowRemote: boolean;
   nativeMcpTimeoutMs: string;
@@ -215,6 +216,11 @@ function blankEnvironmentDraft(id: string, environment?: any): EnvironmentDraft 
     nativeMcpUrl: nativeMcp.url || '',
     nativeMcpToken: '',
     nativeMcpTokenAvailable: nativeMcp.tokenConfigured,
+    // Effective level: explicit value wins, otherwise legacy configs keep the
+    // full assist surface (3), disabled configs stay at 0.
+    nativeMcpLevel: nativeMcp.level === 1 || nativeMcp.level === 2 || nativeMcp.level === 3
+      ? String(nativeMcp.level)
+      : (Boolean(nativeMcp.enabled) || nativeMcp.url ? '3' : '0'),
     nativeMcpAllowExecutionData: Boolean(nativeMcp.allowExecutionData),
     nativeMcpAllowRemote: Boolean(nativeMcp.allowRemoteExposure),
     nativeMcpTimeoutMs: nativeMcp.timeoutMs ? String(nativeMcp.timeoutMs) : '',
