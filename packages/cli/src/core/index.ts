@@ -15,5 +15,8 @@ export * from './services/tls-certificates.js';
 export * from './services/workspace-setup-service.js';
 export * from './services/workflow-path-utils.js';
 export * from './services/preflight-node-validator.js';
+export * from './services/instance-mcp-client.js';
+export * from './services/node-schema-defs-parser.js';
+export * from './services/schema-overlay-manager.js';
 export * from './services/folder-path-resolver.js';
 export * from './helpers/index.js';

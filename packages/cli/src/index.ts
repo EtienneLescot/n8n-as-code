@@ -17,10 +17,10 @@ import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
-import { parsePositiveIntegerOption } from './utils/option-parsers.js';
+import { parsePositiveIntegerOption, parseLevelOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
 import { createN8nManagerFacade } from '@n8n-as-code/manager-adapter';
-import { ConfigService } from './services/config-service.js';
+import { ConfigService, effectiveNativeMcpLevel, NATIVE_MCP_LEVEL_NAMES } from './services/config-service.js';
 import { RestFolderSource } from './core/services/rest-folder-source.js';
 import { installExtraCaCertificates } from './core/services/tls-certificates.js';
 import {
@@ -1211,11 +1211,12 @@ const nativeMcpCmd = program.command('native-mcp')
 
 nativeMcpCmd
     .command('configure')
-    .description('Configure optional native n8n MCP assist for a workspace environment without committing secrets')
+    .description('Configure native n8n MCP usage for a workspace environment without committing secrets')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--url <url>', 'Native n8n MCP HTTP endpoint; defaults to <environment-url>/mcp-server/http')
     .option('--token <token>', 'Native n8n MCP bearer token to store locally')
     .option('--token-stdin', 'Read the native n8n MCP bearer token from stdin')
+    .option('--level <level>', 'Native MCP usage level (cumulative): 1 = schema sync (instance ontology overlay), 2 = + live validation at push, 3 = + read-only discovery', (value) => parseLevelOption(value, '--level'))
     .option('--timeout-ms <ms>', 'Native MCP request timeout in milliseconds', (value) => parsePositiveIntegerOption(value, '--timeout-ms'))
     .option('--allow-execution-data', 'Allow full live execution payloads when explicitly requested')
     .option('--deny-execution-data', 'Disallow full live execution payloads')
@@ -1233,6 +1234,7 @@ nativeMcpCmd
             enabled: true,
             mode: 'assist' as const,
             url: options.url || existing?.url || defaultNativeMcpEndpointFromHost(resolved.host),
+            level: options.level ?? existing?.level,
             timeoutMs: options.timeoutMs ?? existing?.timeoutMs,
             allowExecutionData: options.denyExecutionData ? false : options.allowExecutionData ? true : existing?.allowExecutionData,
             allowRemoteExposure: options.denyRemote ? false : options.allowRemote ? true : existing?.allowRemoteExposure,
@@ -1243,20 +1245,22 @@ nativeMcpCmd
             configService.saveNativeMcpToken(environment.id, options.token);
         }
         const snapshot = configService.getWorkspaceConfig().environments?.find((item) => item.id === environment.id) || environment;
+        const effectiveLevel = effectiveNativeMcpLevel(snapshot.nativeMcp);
         printJsonOrText(
             options,
             snapshot,
             [
-                chalk.green(`✔ Native n8n MCP assist configured for environment: ${environment.name}`),
+                chalk.green(`✔ Native n8n MCP configured for environment: ${environment.name}`),
                 `Endpoint: ${snapshot.nativeMcp?.url || nativeMcp.url}`,
                 `Token   : ${snapshot.nativeMcp?.tokenConfigured ? 'stored locally' : 'not configured'}`,
+                `Level   : ${effectiveLevel} — ${NATIVE_MCP_LEVEL_NAMES[effectiveLevel] ?? 'unknown'}`,
             ].join('\n'),
         );
     });
 
 nativeMcpCmd
     .command('disable')
-    .description('Disable native n8n MCP assist for a workspace environment and remove its stored token')
+    .description('Disable native n8n MCP usage for a workspace environment and remove its stored token')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--json', 'Output environment as JSON')
     .action((nameOrId, options) => {
@@ -1271,7 +1275,7 @@ nativeMcpCmd
             },
         });
         const snapshot = configService.getWorkspaceConfig().environments?.find((item) => item.id === environment.id) || environment;
-        printJsonOrText(options, snapshot, chalk.green(`✔ Native n8n MCP assist disabled for environment: ${environment.name}`));
+        printJsonOrText(options, snapshot, chalk.green(`✔ Native n8n MCP disabled for environment: ${environment.name} (level 0)`));
     });
 
 nativeMcpCmd

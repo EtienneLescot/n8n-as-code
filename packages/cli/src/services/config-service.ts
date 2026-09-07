@@ -88,15 +88,46 @@ export type IEnvironmentTarget = IManagedEnvironmentTarget | IExternalEnvironmen
 
 export type IWorkspaceNativeMcpMode = 'assist' | 'direct';
 
+/**
+ * Native MCP usage level — the single knob that decides how much of the
+ * instance's MCP server n8n-as-code uses. Cumulative ladder:
+ *   0  no MCP at all (bundled ontology only)
+ *   1  schema sync: refresh the local per-instance ontology overlay
+ *   2  + live `validate_node_config` at push time (authoritative gate)
+ *   3  + read-only discovery wrappers (workflows/nodes/executions)
+ * A configured environment without an explicit level behaves as level 3
+ * (maximum backward compatibility with the legacy assist surface).
+ */
+export type IWorkspaceNativeMcpLevel = 1 | 2 | 3;
+
 export interface IWorkspaceNativeMcpConfig {
     enabled?: boolean;
     url?: string;
     mode?: IWorkspaceNativeMcpMode;
+    level?: IWorkspaceNativeMcpLevel;
     timeoutMs?: number;
     allowRemoteExposure?: boolean;
     allowExecutionData?: boolean;
     requireSyncBack?: boolean;
     tokenConfigured?: boolean;
+}
+
+export const NATIVE_MCP_LEVEL_NAMES: Record<number, string> = {
+    0: 'off (bundled ontology only)',
+    1: 'schema sync (instance ontology overlay)',
+    2: 'live validation at push',
+    3: 'read-only discovery',
+};
+
+export function effectiveNativeMcpLevel(nativeMcp: IWorkspaceNativeMcpConfig | undefined, envOverride?: string): number {
+    if (envOverride !== undefined && envOverride.trim() !== '') {
+        const parsed = Number.parseInt(envOverride.trim(), 10);
+        if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 3) return parsed;
+    }
+    if (!nativeMcp) return 0;
+    if (nativeMcp.level !== undefined) return nativeMcp.level;
+    if (nativeMcp.enabled === false) return 0;
+    return nativeMcp.enabled || nativeMcp.url ? 3 : 0;
 }
 
 export interface IWorkspaceEnvironment {
@@ -1344,10 +1375,13 @@ export class ConfigService {
         }
         const timeoutMs = this.parseOptionalPositiveInteger(input.timeoutMs, 'nativeMcp.timeoutMs');
         const mode: IWorkspaceNativeMcpMode | undefined = input.mode === 'direct' ? 'direct' : input.mode === 'assist' ? 'assist' : undefined;
+        const rawLevel = input.level;
+        const level: IWorkspaceNativeMcpLevel | undefined = rawLevel === 1 || rawLevel === 2 || rawLevel === 3 ? rawLevel : undefined;
         return stripUndefined({
             enabled: typeof input.enabled === 'boolean' ? input.enabled : url ? true : undefined,
             url,
             mode,
+            level,
             timeoutMs,
             allowRemoteExposure: typeof input.allowRemoteExposure === 'boolean' ? input.allowRemoteExposure : undefined,
             allowExecutionData: typeof input.allowExecutionData === 'boolean' ? input.allowExecutionData : undefined,
