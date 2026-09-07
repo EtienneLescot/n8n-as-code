@@ -40,6 +40,19 @@
             "name": "systemMessage",
             "type": "string",
             "displayOptions": { "show": { "/useSystemMessage": [true] } }
+          },
+          {
+            "displayName": "Responses API Enabled",
+            "name": "responsesApiEnabled",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "displayName": "Built-in Tools",
+            "name": "builtInTools",
+            "type": "collection",
+            "default": {},
+            "displayOptions": { "show": { "/responsesApiEnabled": [true] } }
           }
         ]
       }

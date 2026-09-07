@@ -1049,7 +1049,7 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         parameters,
     });
 
-    it("rejects a param whose schema variants are all hidden (displayOptions defaults-aware)", async () => {
+    it("rejects a param whose schema variants are all hidden (explicit condition values)", async () => {
         // text is only allowed when promptType="define" or "auto"; fromInput hides every variant.
         const result = await gateValidator().validateWorkflow({
             nodes: [node("n8n-nodes-test.demoAgent", { promptType: "fromInput", text: "hello" }, 3.1)],
@@ -1061,13 +1061,18 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
     });
 
-    it("resolves condition defaults so an omitted promptType is evaluated as auto (server semantics)", async () => {
-        // promptType omitted -> schema default "auto" -> the auto text variant is shown.
+    it("treats a MISSING condition parameter as unsatisfied (server semantics, no schema defaults)", async () => {
+        // Server-verified: validate_node_config evaluates conditions against
+        // explicit values only — an omitted promptType (even with schema default
+        // "auto") hides every text variant, so text is rejected.
         const result = await gateValidator().validateWorkflow({
-            nodes: [node("n8n-nodes-test.demoAgent", { text: "={{ $json.chatInput }}" }, 3.1)],
+            nodes: [node("n8n-nodes-test.demoAgent", { text: "hi" }, 3.1)],
             connections: {},
         });
-        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.text"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
     });
 
     it("accepts text when the displayed variant condition is satisfied", async () => {
@@ -1104,6 +1109,20 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         });
         expect(result.valid).toBe(false);
         expect(result.errors.some((e) => e.message.includes("parameters.systemMessage") && e.message.includes("/useSystemMessage"))).toBe(true);
+    });
+
+    it("rejects builtInTools when responsesApiEnabled is omitted, despite its schema default true", async () => {
+        // The lmChatOpenAi failure mode measured in the benchmark: the schema
+        // declares @default true for responsesApiEnabled, but the live server
+        // evaluates display conditions on explicit values only.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { builtInTools: {} }, 3.1)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.builtInTools"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('/responsesApiEnabled=true');
     });
 
     it("reports multi-variant gating like the server (one-of phrasing)", async () => {

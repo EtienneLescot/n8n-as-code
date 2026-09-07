@@ -283,8 +283,7 @@ export class WorkflowValidator {
 
   /**
    * Resolve the effective value of a display-condition parameter the way the
-   * n8n server does: the explicitly set parameter wins, otherwise the schema
-   * default of the version-appropriate property variant applies.
+   * n8n server does.
    *
    * `/`-prefixed condition names always reference the node's root parameters;
    * plain names reference the current parameter level first (nested fixed
@@ -293,40 +292,22 @@ export class WorkflowValidator {
   private effectiveConditionValue(
     condParamName: string,
     nodeParams: Record<string, any>,
-    rootParams: Record<string, any>,
-    levelProps: any[] | undefined,
-    rootProps: any[] | undefined,
-    node: any,
-    depth = 0
+    rootParams: Record<string, any>
   ): any {
     const isRoot = condParamName.startsWith('/');
     const name = isRoot ? condParamName.slice(1) : condParamName;
     const levelParams = isRoot ? rootParams : nodeParams;
 
+    // Server-verified semantics (validate_node_config): display conditions are
+    // evaluated against the EXPLICIT parameter values only — a missing condition
+    // parameter never satisfies a condition, even when the schema declares a
+    // default (an omitted `responsesApiEnabled`, `promptType` or
+    // `sessionIdType` hides every dependent variant, exactly like the live
+    // instance rejects the dependent parameter).
     if (this.hasOwnProperty(levelParams, name)) {
       return levelParams[name];
     }
-    if (depth > 3) {
-      return undefined;
-    }
-
-    const propSource = isRoot ? rootProps || levelProps : levelProps;
-    const candidates = (propSource || []).filter(
-      (p: any) => p?.name === name && this.isVersionRelevant(p, node)
-    );
-    if (candidates.length === 0) {
-      return undefined;
-    }
-
-    // Prefer the variant whose non-@version conditions already hold for the
-    // provided parameters (e.g. promptType has separate "auto"/"define"
-    // variants with different defaults). Without any satisfied variant, fall
-    // back to the first version-relevant entry.
-    const satisfied = candidates.find((p: any) =>
-      this.isPropertyDisplayed(p, levelParams, levelParams, node, propSource, propSource, depth + 1)
-    );
-    const chosen = satisfied ?? candidates[0];
-    return chosen?.default;
+    return this.hasOwnProperty(rootParams, name) ? rootParams[name] : undefined;
   }
 
   private matchesVersionCondition(condition: any, nodeVersion: number): boolean {
@@ -361,20 +342,22 @@ export class WorkflowValidator {
 
   /**
    * Check whether a schema property's displayOptions conditions are satisfied
-   * by the effective parameters (explicit values first, schema defaults for
-   * missing condition parameters). If no displayOptions defined -> always shown.
+   * by the explicit parameter values. Missing condition parameters never
+   * satisfy a condition — server-verified semantics (see
+   * {@link effectiveConditionValue}). If no displayOptions defined -> always
+   * shown.
    *
-   * `levelProps` / `rootProps` carry the property lists whose defaults may
-   * satisfy condition parameters at the current level / at the node root.
+   * `levelProps` / `rootProps` are accepted for API compatibility with nested
+   * validation call sites.
    */
   private isPropertyDisplayed(
     prop: any,
     nodeParams: Record<string, any>,
     rootParams: Record<string, any> = nodeParams,
     node?: any,
-    levelProps?: any[],
-    rootProps?: any[],
-    depth = 0
+    _levelProps?: any[],
+    _rootProps?: any[],
+    _depth = 0
   ): boolean {
     const nodeVersion = this.nodeVersionOf(node);
 
@@ -386,7 +369,7 @@ export class WorkflowValidator {
           continue;
         }
         if (!Array.isArray(hiddenValues)) continue;
-        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
+        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams);
         if (hiddenValues.includes(actualValue)) return false;
       }
     }
@@ -400,7 +383,7 @@ export class WorkflowValidator {
         continue;
       }
       if (!Array.isArray(allowedValues)) continue;
-      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
+      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams);
       // An expression cannot be resolved statically: never treat the property as
       // hidden on its account (it may satisfy the condition at run time).
       if (this.isExpressionValue(actualValue)) continue;
