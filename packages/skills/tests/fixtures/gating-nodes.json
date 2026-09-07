@@ -1,0 +1,145 @@
+{
+  "generatedAt": "2024-01-01T00:00:00.000Z",
+  "n8nVersion": "n8n@test",
+  "nodes": {
+    "demoAgent": {
+      "name": "demoAgent",
+      "type": "n8n-nodes-test.demoAgent",
+      "displayName": "Demo Agent",
+      "description": "Test agent",
+      "version": [3, 3.1],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Prompt Type",
+            "name": "promptType",
+            "type": "options",
+            "options": [
+              { "name": "Define below", "value": "define" },
+              { "name": "Auto", "value": "auto" },
+              { "name": "From input", "value": "fromInput" }
+            ],
+            "default": "auto"
+          },
+          {
+            "displayName": "Text (auto)",
+            "name": "text",
+            "type": "string",
+            "default": "={{ $json.chatInput }}",
+            "displayOptions": { "show": { "promptType": ["auto"] } }
+          },
+          {
+            "displayName": "Text (define)",
+            "name": "text",
+            "type": "string",
+            "default": "",
+            "displayOptions": { "show": { "promptType": ["define"] } }
+          },
+          {
+            "displayName": "System Message",
+            "name": "systemMessage",
+            "type": "string",
+            "displayOptions": { "show": { "/useSystemMessage": [true] } }
+          }
+        ]
+      }
+    },
+    "demoMemory": {
+      "name": "demoMemory",
+      "type": "n8n-nodes-test.demoMemory",
+      "displayName": "Demo Memory",
+      "description": "Test memory",
+      "version": [1.4],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Session ID",
+            "name": "sessionIdType",
+            "type": "options",
+            "options": [
+              { "name": "From input", "value": "fromInput" },
+              { "name": "Define below", "value": "customKey" }
+            ],
+            "default": "fromInput"
+          },
+          {
+            "displayName": "Session Key (custom)",
+            "name": "sessionKey",
+            "type": "string",
+            "default": "",
+            "displayOptions": { "show": { "sessionIdType": ["customKey"] } }
+          },
+          {
+            "displayName": "Context Length",
+            "name": "contextWindowLength",
+            "type": "number",
+            "default": 5
+          }
+        ]
+      }
+    },
+    "demoHtml": {
+      "name": "demoHtml",
+      "type": "n8n-nodes-test.demoHtml",
+      "displayName": "Demo HTML",
+      "description": "Test html",
+      "version": [1.2],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Operation",
+            "name": "operation",
+            "type": "options",
+            "options": [
+              { "name": "Generate", "value": "generateHtmlTemplate" },
+              { "name": "Extract", "value": "extractHtmlContent" }
+            ],
+            "default": "generateHtmlTemplate"
+          },
+          {
+            "displayName": "Source Data",
+            "name": "sourceData",
+            "type": "options",
+            "options": [
+              { "name": "Binary", "value": "binary" },
+              { "name": "JSON", "value": "json" }
+            ],
+            "default": "json",
+            "displayOptions": { "show": { "operation": ["extractHtmlContent"] } }
+          },
+          {
+            "displayName": "Data Property (binary)",
+            "name": "dataPropertyName",
+            "type": "string",
+            "default": "data",
+            "displayOptions": { "show": { "operation": ["extractHtmlContent"], "sourceData": ["binary"] } }
+          },
+          {
+            "displayName": "Data Property (json)",
+            "name": "dataPropertyName",
+            "type": "string",
+            "default": "data",
+            "displayOptions": { "show": { "operation": ["extractHtmlContent"], "sourceData": ["json"] } }
+          }
+        ]
+      }
+    },
+    "demoRlc": {
+      "name": "demoRlc",
+      "type": "n8n-nodes-test.demoRlc",
+      "displayName": "Demo RLC",
+      "description": "Test resource locator",
+      "version": [1],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Model",
+            "name": "model",
+            "type": "resourceLocator",
+            "default": { "mode": "list", "value": "gpt-5-mini" }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import { BaseCommand, captureEmittedErrors, formatConnectionError } from './base.js';
 import { SyncManager, WorkflowSyncStatus, type IPushPublishReport } from '../core/index.js';
+import { PreflightNodeValidator } from '../core/index.js';
 import { WorkflowValidator } from '@n8n-as-code/skills';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -69,10 +70,12 @@ export class SyncCommand extends BaseCommand {
         
         let workflowId: string | undefined;
         let basename: string | undefined;
+        let absolutePath: string | undefined;
         
         try {
             const pushTarget = syncManager.resolvePushTarget(filename);
             basename = pushTarget.filename;
+            absolutePath = pushTarget.absolutePath;
             workflowId = syncManager.getWorkflowIdForFilename(pushTarget.filename);
         } catch (e) {
             // If normalization fails, let the actual push() call throw the clean error
@@ -89,6 +92,39 @@ export class SyncCommand extends BaseCommand {
                 console.log(`  n8nac resolve ${workflowId} --mode keep-current`);
                 console.log(`  n8nac resolve ${workflowId} --mode keep-incoming`);
                 process.exit(1);
+            }
+        }
+
+        // Pre-push node validation. A workflow whose nodes the instance itself
+        // (or the bundled schema, when no instance MCP endpoint is configured)
+        // rejects must never be deployed — n8n would store it, but it would be
+        // broken in the UI and fail at run time. Escalate to "push anyway" with
+        // N8NAC_PUSH_SKIP_VALIDATION=1.
+        if (absolutePath) {
+            const outcome = await this.runPrePushValidation(absolutePath);
+            if (outcome) {
+                if (outcome.source === 'server' || outcome.source === 'local') {
+                    if (!outcome.valid) {
+                        if (basename && workflowId) {
+                            await syncManager.recordWorkflowPushRejected(basename, workflowId, 'Pre-push node validation failed');
+                        }
+                        console.log(chalk.red(`\n❌ ${outcome.issues.length} node(s) would be rejected by n8n. Push aborted before any remote change.\n`));
+                        for (const issue of outcome.issues) {
+                            const nodeLabel = issue.name ? chalk.bold(`[${issue.name}]`) : '';
+                            console.log(chalk.red(`  • ${nodeLabel} ${chalk.dim(issue.type)}`));
+                            for (const err of issue.errors) {
+                                console.log(chalk.red(`      - ${err.message}`));
+                            }
+                        }
+                        if (outcome.skippedReason) {
+                            console.log(chalk.dim(`\n  (${outcome.skippedReason})`));
+                        }
+                        console.log(chalk.yellow('\n  Fix the reported node parameters, then push again.'));
+                        process.exit(1);
+                    }
+                } else {
+                    console.warn(chalk.yellow(`⚠  Pre-push node validation skipped: ${outcome.skippedReason || 'validation unavailable'}`));
+                }
             }
         }
 
@@ -275,6 +311,57 @@ export class SyncCommand extends BaseCommand {
         }
 
         return result.valid;
+    }
+
+    /**
+     * Validate a local workflow file against the strongest schema available
+     * before anything is written to the instance:
+     *  - the instance's own native MCP `validate_node_config` when the active
+     *    environment has native MCP assist configured (or the
+     *    N8NAC_NATIVE_MCP_ENABLED flag is set), then
+     *  - the bundled technical node index otherwise.
+     *
+     * Returns null when validation is skipped (opt-out env var, no host, or the
+     * workflow file cannot be compiled locally — the push itself then reports
+     * the real compile error).
+     */
+    private async runPrePushValidation(absolutePath: string): Promise<Awaited<ReturnType<PreflightNodeValidator['validateFile']>> | null> {
+        if (/^(1|true|yes|on)$/i.test(process.env.N8NAC_PUSH_SKIP_VALIDATION || '')) {
+            return null;
+        }
+
+        const environment = this.activeEnvironment;
+        const host = environment?.host || this.config?.host;
+        if (!host) {
+            return null;
+        }
+
+        const nativeMcp = environment?.nativeMcp;
+        const flagEnabled = /^(1|true|yes|on)$/i.test(process.env.N8NAC_NATIVE_MCP_ENABLED || '');
+        const wantsServer = Boolean(nativeMcp?.url || nativeMcp?.enabled || flagEnabled);
+
+        let endpoint: string | undefined;
+        let token: string | undefined;
+        if (wantsServer) {
+            endpoint = nativeMcp?.url || `${host.replace(/\/+$/, '')}/mcp-server/http`;
+            try {
+                token = this.configService.getNativeMcpToken(environment?.environmentId) || environment?.apiKey;
+            } catch {
+                token = environment?.apiKey;
+            }
+        }
+
+        const validator = endpoint
+            ? new PreflightNodeValidator({ endpoint, token })
+            : new PreflightNodeValidator();
+        try {
+            return await validator.validateFile(absolutePath);
+        } catch (error: any) {
+            // Compilation failure: the push below fails identically and reports
+            // the error through its own path, so do not mask it here.
+            console.warn(chalk.yellow(`⚠  Pre-push validation could not compile the workflow: ${error?.message || error}`));
+            return null;
+        }
     }
 
 }
