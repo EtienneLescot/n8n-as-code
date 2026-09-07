@@ -282,32 +282,52 @@ export class WorkflowValidator {
   }
 
   /**
-   * Resolve the effective value of a display-condition parameter the way the
-   * n8n server does.
+   * Resolve the effective value of a display-condition parameter, mirroring
+   * the n8n server's own gating engine (validate_node_config /
+   * generate-zod-schemas + display-options.ts):
    *
-   * `/`-prefixed condition names always reference the node's root parameters;
-   * plain names reference the current parameter level first (nested fixed
-   * collection items), then the root level — mirroring n8n's own resolution.
+   * - `/`-prefixed condition names always reference the node's root parameters
+   *   and never fall back to schema defaults (the server generator skips `/`
+   *   and `@` keys when building its `defaults` map), so a missing root
+   *   parameter hides every dependent variant — e.g. `builtInTools` without an
+   *   explicit `responsesApiEnabled: true`;
+   * - plain names reference the current parameter level first (nested fixed
+   *   collection items), then the root level — and fall back to the schema
+   *   default of the version-relevant property variant when unset;
+   * - resource-locator values (`{ __rl: true, ... }`) are unwrapped to their
+   *   inner `value` before comparison.
    */
   private effectiveConditionValue(
     condParamName: string,
     nodeParams: Record<string, any>,
-    rootParams: Record<string, any>
+    rootParams: Record<string, any>,
+    levelProps?: any[],
+    rootProps?: any[],
+    node?: any
   ): any {
     const isRoot = condParamName.startsWith('/');
     const name = isRoot ? condParamName.slice(1) : condParamName;
     const levelParams = isRoot ? rootParams : nodeParams;
 
-    // Server-verified semantics (validate_node_config): display conditions are
-    // evaluated against the EXPLICIT parameter values only — a missing condition
-    // parameter never satisfies a condition, even when the schema declares a
-    // default (an omitted `responsesApiEnabled`, `promptType` or
-    // `sessionIdType` hides every dependent variant, exactly like the live
-    // instance rejects the dependent parameter).
-    if (this.hasOwnProperty(levelParams, name)) {
-      return levelParams[name];
+    let value = this.hasOwnProperty(levelParams, name) ? levelParams[name] : undefined;
+    if (value === undefined && !isRoot && this.hasOwnProperty(rootParams, name)) {
+      value = rootParams[name];
     }
-    return this.hasOwnProperty(rootParams, name) ? rootParams[name] : undefined;
+    if (value === undefined && !isRoot) {
+      for (const props of [levelProps, rootProps]) {
+        if (!Array.isArray(props)) continue;
+        const candidate = props.find((p: any) => p?.name === name && this.isVersionRelevant(p, node));
+        if (candidate && candidate.default !== undefined) {
+          value = candidate.default;
+          break;
+        }
+      }
+    }
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) &&
+        (value as any).__rl === true && this.hasOwnProperty(value, 'value')) {
+      return (value as any).value;
+    }
+    return value;
   }
 
   private matchesVersionCondition(condition: any, nodeVersion: number): boolean {
@@ -342,21 +362,20 @@ export class WorkflowValidator {
 
   /**
    * Check whether a schema property's displayOptions conditions are satisfied
-   * by the explicit parameter values. Missing condition parameters never
-   * satisfy a condition — server-verified semantics (see
-   * {@link effectiveConditionValue}). If no displayOptions defined -> always
-   * shown.
+   * by the effective parameter values (see {@link effectiveConditionValue}).
+   * If no displayOptions defined -> always shown.
    *
-   * `levelProps` / `rootProps` are accepted for API compatibility with nested
-   * validation call sites.
+   * `levelProps` / `rootProps` carry the property lists whose defaults may
+   * satisfy non-slash condition parameters at the current level / at the node
+   * root.
    */
   private isPropertyDisplayed(
     prop: any,
     nodeParams: Record<string, any>,
     rootParams: Record<string, any> = nodeParams,
     node?: any,
-    _levelProps?: any[],
-    _rootProps?: any[],
+    levelProps?: any[],
+    rootProps?: any[],
     _depth = 0
   ): boolean {
     const nodeVersion = this.nodeVersionOf(node);
@@ -369,7 +388,7 @@ export class WorkflowValidator {
           continue;
         }
         if (!Array.isArray(hiddenValues)) continue;
-        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams);
+        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node);
         if (hiddenValues.includes(actualValue)) return false;
       }
     }
@@ -383,7 +402,7 @@ export class WorkflowValidator {
         continue;
       }
       if (!Array.isArray(allowedValues)) continue;
-      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams);
+      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node);
       // An expression cannot be resolved statically: never treat the property as
       // hidden on its account (it may satisfy the condition at run time).
       if (this.isExpressionValue(actualValue)) continue;

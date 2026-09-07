@@ -1061,18 +1061,15 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
     });
 
-    it("treats a MISSING condition parameter as unsatisfied (server semantics, no schema defaults)", async () => {
-        // Server-verified: validate_node_config evaluates conditions against
-        // explicit values only — an omitted promptType (even with schema default
-        // "auto") hides every text variant, so text is rejected.
+    it("resolves a missing non-slash condition through its schema default (server semantics)", async () => {
+        // Server-verified: for plain (non-slash) conditions, the schema default
+        // of the condition parameter applies when it is omitted — the auto
+        // text variant is therefore displayed and text is allowed.
         const result = await gateValidator().validateWorkflow({
             nodes: [node("n8n-nodes-test.demoAgent", { text: "hi" }, 3.1)],
             connections: {},
         });
-        expect(result.valid).toBe(false);
-        const err = result.errors.find((e) => e.message.includes("parameters.text"));
-        expect(err).toBeDefined();
-        expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
+        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
     });
 
     it("accepts text when the displayed variant condition is satisfied", async () => {
@@ -1203,5 +1200,20 @@ describe("WorkflowValidator - expression conditions and strict resource-locator 
         });
         expect(bad.valid).toBe(false);
         expect(bad.errors.some((e) => e.message.includes("must be an object shaped like"))).toBe(true);
+    });
+
+    it("unwraps resource-locator values when evaluating display conditions", async () => {
+        // calendar = { __rl: true, value: 'primary' } satisfies show calendar=['primary'].
+        const ok = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlcCond", { calendar: { __rl: true, mode: "id", value: "primary" }, eventTitle: "Daily" }, 1)],
+            connections: {},
+        });
+        expect(ok.errors.filter((e) => e.message.includes("parameters.eventTitle"))).toHaveLength(0);
+
+        const bad = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlcCond", { calendar: { __rl: true, mode: "id", value: "other" }, eventTitle: "Daily" }, 1)],
+            connections: {},
+        });
+        expect(bad.errors.some((e) => e.message.includes("parameters.eventTitle"))).toBe(true);
     });
 });

@@ -153,6 +153,29 @@
           }
         ]
       }
+    },
+    "demoRlcCond": {
+      "name": "demoRlcCond",
+      "type": "n8n-nodes-test.demoRlcCond",
+      "displayName": "Demo RLC Condition",
+      "description": "Test resource locator unwrapping in display conditions",
+      "version": [1],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Calendar",
+            "name": "calendar",
+            "type": "resourceLocator",
+            "default": { "mode": "list", "value": "" }
+          },
+          {
+            "displayName": "Event Title",
+            "name": "eventTitle",
+            "type": "string",
+            "displayOptions": { "show": { "calendar": ["primary"] } }
+          }
+        ]
+      }
     }
   }
 }
