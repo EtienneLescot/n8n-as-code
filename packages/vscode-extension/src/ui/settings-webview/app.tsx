@@ -266,6 +266,7 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
       nativeMcpEnabled: draft.nativeMcpEnabled,
       nativeMcpUrl: draft.nativeMcpUrl,
       nativeMcpToken: draft.nativeMcpToken,
+      nativeMcpLevel: draft.nativeMcpEnabled ? draft.nativeMcpLevel || '3' : undefined,
       nativeMcpAllowExecutionData: draft.nativeMcpAllowExecutionData,
       nativeMcpAllowRemote: draft.nativeMcpAllowRemote,
       nativeMcpTimeoutMs: draft.nativeMcpTimeoutMs,
@@ -299,6 +300,8 @@ function EnvironmentFormModal({ environmentId }: { environmentId?: string }) {
       <p className="muted">Live assist for workflows, executions, credential metadata, native node definitions, and server-side validation. N8NAC remains the authoring and sync source of truth.</p>
       {draft.nativeMcpEnabled ? <>
         <div className="form-grid"><label>MCP endpoint<input value={draft.nativeMcpUrl} onChange={(event) => patch({ nativeMcpUrl: event.target.value })} placeholder="Defaults to the environment URL + /mcp-server/http" /></label><label>Token<input type="password" value={draft.nativeMcpToken} onChange={(event) => patch({ nativeMcpToken: event.target.value })} placeholder={draft.nativeMcpTokenAvailable ? 'Stored token will be reused' : 'Native MCP bearer token'} /></label></div>
+        <label>Usage level (cumulative)<input type="range" min="1" max="3" step="1" value={draft.nativeMcpLevel === '1' || draft.nativeMcpLevel === '2' || draft.nativeMcpLevel === '3' ? draft.nativeMcpLevel : '3'} onChange={(event) => patch({ nativeMcpLevel: event.target.value })} /></label>
+        <p className="muted">Level {draft.nativeMcpLevel === '1' ? '1 — schema sync: refresh the per-instance schema overlay, then validate locally.' : draft.nativeMcpLevel === '2' ? '2 — live validation at push: the instance checks every node before anything is written.' : '3 — read-only discovery on top of levels 1 and 2.'} Level 0 (this section disabled) validates against the bundled schema only and is not recommended.</p>
         <label>Timeout ms<input value={draft.nativeMcpTimeoutMs} onChange={(event) => patch({ nativeMcpTimeoutMs: event.target.value })} placeholder="30000" /></label>
         <details className="stack">
           <summary>Advanced security options</summary>

@@ -1050,7 +1050,8 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
     });
 
     it("rejects a param whose schema variants are all hidden (explicit condition values)", async () => {
-        // text is only allowed when promptType="define" or "auto"; fromInput hides every variant.
+        // The define variant is the only surviving one (the auto variant is
+        // fully disabled); fromInput matches neither -> rejection lists define only.
         const result = await gateValidator().validateWorkflow({
             nodes: [node("n8n-nodes-test.demoAgent", { promptType: "fromInput", text: "hello" }, 3.1)],
             connections: {},
@@ -1058,18 +1059,21 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         expect(result.valid).toBe(false);
         const err = result.errors.find((e) => e.message.includes("parameters.text"));
         expect(err).toBeDefined();
-        expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
+        expect(err!.message).toContain('This field is only allowed when: promptType="define"');
     });
 
     it("resolves a missing non-slash condition through its schema default (server semantics)", async () => {
-        // Server-verified: for plain (non-slash) conditions, the schema default
-        // of the condition parameter applies when it is omitted — the auto
-        // text variant is therefore displayed and text is allowed.
+        // The auto text variant is fully disabled (expression-prefilled,
+        // disabled UI field), so the omitted promptType falls back to "auto"
+        // but matches no surviving variant -> rejection, like the server.
         const result = await gateValidator().validateWorkflow({
             nodes: [node("n8n-nodes-test.demoAgent", { text: "hi" }, 3.1)],
             connections: {},
         });
-        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.text"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when: promptType="define"');
     });
 
     it("accepts text when the displayed variant condition is satisfied", async () => {
@@ -1078,6 +1082,22 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
             connections: {},
         });
         expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+    });
+
+    it("drops fully-disabled variants before gating: the fromInput sessionKey variant does not exist", async () => {
+        // The fixture models the raw schema (fromInput variant + disabledOptions,
+        // like the live memoryBufferWindow description). Narrowing must remove it,
+        // so an explicit fromInput + sessionKey is rejected exactly like the
+        // server does — the message only lists the customKey alternative.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoMemory", { sessionIdType: "fromInput", sessionKey: "k" }, 1.4)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.sessionKey"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when: sessionIdType="customKey"');
+        expect(err!.message).not.toContain("fromInput");
     });
 
     it("rejects sessionKey when sessionIdType default (fromInput) hides every variant", async () => {

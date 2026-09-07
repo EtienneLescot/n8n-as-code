@@ -662,11 +662,20 @@ export class ConfigurationWebview {
     }
   }
 
+  private nativeMcpLevelFromPayload(payload: Record<string, unknown>, existing: any): 1 | 2 | 3 | undefined {
+    const raw = payload.nativeMcpLevel;
+    const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseInt(raw, 10) : NaN;
+    if (parsed === 1 || parsed === 2 || parsed === 3) return parsed;
+    if (existing?.level === 1 || existing?.level === 2 || existing?.level === 3) return existing.level;
+    return undefined;
+  }
+
   private buildNativeMcpEnvironmentConfig(payload: Record<string, unknown>, existing: any, environmentHost: string) {
     const enabled = Boolean(payload.nativeMcpEnabled);
     const explicitUrl = normalizeHost(String(payload.nativeMcpUrl || ''));
     const url = explicitUrl || (enabled ? defaultNativeMcpEndpointFromHost(environmentHost) : existing?.url);
     const timeoutMs = parseNativeMcpTimeoutMs(payload.nativeMcpTimeoutMs) || existing?.timeoutMs;
+    const level = enabled ? (this.nativeMcpLevelFromPayload(payload, existing) ?? 3) : undefined;
     const hasExisting = Boolean(existing);
     const hasPayload = enabled || explicitUrl || String(payload.nativeMcpToken || '').trim() || hasExisting;
     if (!hasPayload) return undefined;
@@ -675,6 +684,7 @@ export class ConfigurationWebview {
       enabled,
       mode: 'assist' as const,
       url: url || undefined,
+      level,
       timeoutMs,
       allowExecutionData: Boolean(payload.nativeMcpAllowExecutionData),
       allowRemoteExposure: Boolean(payload.nativeMcpAllowRemote),

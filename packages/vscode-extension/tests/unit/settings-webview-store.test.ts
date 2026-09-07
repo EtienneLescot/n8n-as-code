@@ -58,6 +58,8 @@ test('settings webview store hydrates native MCP draft fields from environment s
     assert.strictEqual(draft.nativeMcpEnabled, true);
     assert.strictEqual(draft.nativeMcpUrl, 'https://dev.example.test/mcp-server/http');
     assert.strictEqual(draft.nativeMcpToken, '');
+    // Legacy configs without an explicit level default to the full assist surface.
+    assert.strictEqual(draft.nativeMcpLevel, '3');
     assert.strictEqual(draft.nativeMcpTokenAvailable, true);
     assert.strictEqual(draft.nativeMcpAllowExecutionData, true);
     assert.strictEqual(draft.nativeMcpAllowRemote, false);

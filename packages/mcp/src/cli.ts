@@ -2,6 +2,13 @@
 import { startN8nAsCodeMcpServer } from './services/mcp-server.js';
 import { N8nAsCodeMcpService } from './services/mcp-service.js';
 
+const NATIVE_MCP_LEVEL_LABELS: Record<number, string> = {
+    0: 'off (bundled ontology only)',
+    1: 'schema sync (instance ontology overlay)',
+    2: 'live validation at push',
+    3: 'read-only discovery',
+};
+
 const argv = process.argv.slice(2);
 
 function getArgValue(flag: string): string | undefined {
@@ -43,6 +50,11 @@ function printNativeMcpStatus(status: any, toolsOnly = false): void {
 
     process.stdout.write(`Native n8n MCP: ${status.config.enabled ? 'enabled' : 'disabled'}\n`);
     process.stdout.write(`Mode: ${status.config.mode}\n`);
+    const level = typeof status.config.level === 'number' ? status.config.level : (status.config.enabled ? 3 : 0);
+    process.stdout.write(`Level: ${level} — ${NATIVE_MCP_LEVEL_LABELS[level] ?? 'unknown'}\n`);
+    if (level === 0) {
+        process.stdout.write('Connect the instance MCP for better precision: n8nac native-mcp configure --level 1|2|3 (level 0 validates against the bundled schema only and may drift from the instance).\n');
+    }
     process.stdout.write(`Endpoint configured: ${status.config.configured ? 'yes' : 'no'}\n`);
     if (status.config.endpoint) process.stdout.write(`Endpoint: ${status.config.endpoint}\n`);
     process.stdout.write(`Bearer token configured: ${status.config.tokenConfigured ? 'yes' : 'no'}\n`);
