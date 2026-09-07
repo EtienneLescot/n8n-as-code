@@ -128,14 +128,21 @@ function redactEndpoint(endpoint: string | undefined): string | undefined {
     }
 }
 
-function parseLevel(value: string | undefined, workspaceLevel: NativeMcpLevel | undefined, enabled: boolean): NativeMcpLevel {
-    if (!enabled) return 0;
+function parseStrictLevel(value: string | undefined, min: number, max: number): number | undefined {
     const cleaned = clean(value);
-    if (cleaned !== undefined) {
-        const parsed = Number.parseInt(cleaned, 10);
-        if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 3) return parsed as NativeMcpLevel;
-    }
-    if (workspaceLevel !== undefined) return workspaceLevel;
+    if (cleaned === undefined || !/^\d+$/.test(cleaned)) return undefined;
+    const parsed = Number.parseInt(cleaned, 10);
+    if (!Number.isSafeInteger(parsed) || parsed < min || parsed > max) return undefined;
+    return parsed;
+}
+
+function parseLevel(value: string | undefined, workspaceLevel: NativeMcpLevel | undefined, enabled: boolean): NativeMcpLevel {
+    // An explicit env level always wins — including 0, which acts as an
+    // explicit disabled override and must survive normalization.
+    const explicit = parseStrictLevel(value, 0, 3);
+    if (explicit !== undefined) return explicit as NativeMcpLevel;
+    if (!enabled) return 0;
+    if (workspaceLevel === 1 || workspaceLevel === 2 || workspaceLevel === 3) return workspaceLevel;
     // Legacy configuration (no explicit level): keep the full legacy assist surface.
     return 3;
 }
