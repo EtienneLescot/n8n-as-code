@@ -1,8 +1,8 @@
 {
   "mode": "rc",
   "changed": true,
-  "rcNumber": 4,
-  "releaseVersion": "2.6.0-rc.4",
+  "rcNumber": 5,
+  "releaseVersion": "2.6.0-rc.5",
   "packages": [
     {
       "name": "@n8n-as-code/transformer",
@@ -40,7 +40,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.1-rc.4"
+      "rcVersion": "2.0.1-rc.5"
     },
     {
       "name": "@n8n-as-code/telemetry",
@@ -83,7 +83,7 @@
         "dependency:@n8n-as-code/transformer",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.1-rc.4"
+      "rcVersion": "2.0.1-rc.5"
     },
     {
       "name": "@n8n-as-code/manager-adapter",
@@ -107,7 +107,7 @@
         "dependency:@n8n-as-code/workflow-core",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.5-rc.4"
+      "rcVersion": "2.0.5-rc.5"
     },
     {
       "name": "@n8n-as-code/skills",
@@ -288,7 +288,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.4.0-rc.4"
+      "rcVersion": "2.4.0-rc.5"
     },
     {
       "name": "n8nac",
@@ -423,7 +423,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.6.0-rc.4"
+      "rcVersion": "2.6.0-rc.5"
     },
     {
       "name": "@n8n-as-code/mcp",
@@ -464,7 +464,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.1.3-rc.4"
+      "rcVersion": "2.1.3-rc.5"
     },
     {
       "name": "n8n-as-code",
@@ -538,7 +538,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.42.0-rc.4"
+      "rcVersion": "2.42.0-rc.5"
     },
     {
       "name": "@n8n-as-code/n8nac",
@@ -579,7 +579,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.3.0-rc.4"
+      "rcVersion": "2.3.0-rc.5"
     }
   ]
 }
