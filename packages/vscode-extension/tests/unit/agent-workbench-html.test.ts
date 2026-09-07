@@ -714,3 +714,30 @@ test('Agent Workbench HTML: handles panel.visibility to unload/reload iframe', (
     assert.ok(html.includes("frame.src = 'about:blank'"), 'Must set frame.src to about:blank when hidden');
     assert.ok(html.includes("frame.src = workflowUrl"), 'Must restore original workflowUrl when visible');
 });
+
+test('Agent runtime: running operation deltas are coalesced before reaching the webview', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const source = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+
+    assert.ok(source.includes('STREAM_OPERATION_FLUSH_INTERVAL_MS'), 'Runtime should define a bounded operation flush interval');
+    assert.ok(source.includes('pendingOperationEvents'), 'Runtime should coalesce running operation events per operation');
+    assert.ok(source.includes("streamEvent.type === 'operation' && streamEvent.status === 'running'"), 'Only running operations should be deferred; terminal states stay immediate');
+    assert.ok(source.includes('scheduleOperationFlush()'), 'Deferred operations should flush on a timer');
+    const flushCount = (source.match(/await flushPendingOperationsNow\(\);/g) || []).length;
+    assert.ok(flushCount >= 2, 'Terminal events and the final response must flush deferred operations first');
+    assert.ok(source.includes('pendingOperationEvents = new Map();'), 'Aborted runs should drop buffered operations');
+});
+
+test('Agent Workbench HTML: running operations defer full feed rendering', () => {
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(html.includes("if (opEntry.status === 'running') deferRender = true;"), 'Running operation updates must defer full feed rendering');
+    assert.ok(html.includes("if (progressEntry.status === 'running') deferRender = true;"), 'Running progress updates must defer full feed rendering');
+});

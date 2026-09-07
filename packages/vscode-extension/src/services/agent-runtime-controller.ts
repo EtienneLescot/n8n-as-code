@@ -31,6 +31,7 @@ const NON_FINAL_ASSISTANT_PHASE_RECOVERY_MARKER = 'N8N_NON_FINAL_ASSISTANT_PHASE
 const NON_FINAL_ASSISTANT_PHASE_MAX_RECOVERY_ATTEMPTS = 12;
 const STREAM_TEXT_FLUSH_INTERVAL_MS = 33;
 const STREAM_TEXT_FLUSH_CHAR_THRESHOLD = 512;
+const STREAM_OPERATION_FLUSH_INTERVAL_MS = 250;
 
 type ActiveWorktreePathsBySession = Record<string, string | null>;
 
@@ -1517,6 +1518,8 @@ export class AgentRuntimeController implements vscode.Disposable {
         let pendingTextDelta = '';
         let pendingTextFlushTimer: NodeJS.Timeout | undefined;
         let textFlushChain = Promise.resolve();
+        let pendingOperationEvents = new Map<string, AgentStreamEvent>();
+        let pendingOperationFlushTimer: NodeJS.Timeout | undefined;
         let streamClosed = false;
         this.outputChannel.appendLine(`[n8n-agent-debug] deepagents.v3.run started sessionId=${input.sessionId || 'none'} workflowId=${input.workflowId || 'none'}`);
         const syncEntries = () => {
@@ -1563,6 +1566,29 @@ export class AgentRuntimeController implements vscode.Disposable {
                 });
             }, STREAM_TEXT_FLUSH_INTERVAL_MS);
         };
+        const flushPendingOperationsNow = async () => {
+            if (pendingOperationFlushTimer) {
+                clearTimeout(pendingOperationFlushTimer);
+                pendingOperationFlushTimer = undefined;
+            }
+            if (!pendingOperationEvents.size) return;
+            const pending = [...pendingOperationEvents.values()];
+            pendingOperationEvents = new Map();
+            for (const pendingEvent of pending) {
+                await emitStreamEventNow(pendingEvent);
+            }
+        };
+        const scheduleOperationFlush = () => {
+            if (streamClosed) return;
+            if (pendingOperationFlushTimer) return;
+            pendingOperationFlushTimer = setTimeout(() => {
+                pendingOperationFlushTimer = undefined;
+                if (streamClosed) return;
+                void flushPendingOperationsNow().catch((error: any) => {
+                    this.outputChannel.appendLine(`[n8n-agent] Stream operation flush failed: ${error?.message || String(error)}`);
+                });
+            }, STREAM_OPERATION_FLUSH_INTERVAL_MS);
+        };
         const emitStreamEvent = async (streamEvent: AgentStreamEvent) => {
             if (streamEvent.type === 'text-delta') {
                 pendingTextDelta += streamEvent.delta;
@@ -1573,13 +1599,21 @@ export class AgentRuntimeController implements vscode.Disposable {
                 }
                 return;
             }
+            if (streamEvent.type === 'operation' && streamEvent.status === 'running') {
+                // ponytail: one postMessage per operation per 250ms; per-token thinking/tool deltas otherwise saturate the webview.
+                pendingOperationEvents.set(streamEvent.operationId || `${streamEvent.category}:${streamEvent.label}`, streamEvent);
+                scheduleOperationFlush();
+                return;
+            }
             await flushPendingTextDelta();
+            await flushPendingOperationsNow();
             await emitStreamEventNow(streamEvent);
         };
         const emitFinalEvent = async (response: string, finalState: string) => {
             if (authoritativeFinalEmitted) return;
             authoritativeFinalEmitted = true;
             await flushPendingTextDelta();
+            await flushPendingOperationsNow();
             const activeRun = input.sessionId ? this.activeRuns.get(input.sessionId) : undefined;
             if (activeRun && activeRun.sessionId === input.sessionId) {
                 activeRun.visibleDone = true;
@@ -1671,12 +1705,20 @@ export class AgentRuntimeController implements vscode.Disposable {
                 clearTimeout(pendingTextFlushTimer);
                 pendingTextFlushTimer = undefined;
             }
+            if (pendingOperationFlushTimer) {
+                clearTimeout(pendingOperationFlushTimer);
+                pendingOperationFlushTimer = undefined;
+            }
             if (signal.aborted) {
                 pendingTextDelta = '';
+                pendingOperationEvents = new Map();
                 await textFlushChain.catch(() => undefined);
             } else {
                 await flushPendingTextDelta().catch((error: any) => {
                     this.outputChannel.appendLine(`[n8n-agent] Stream text flush failed during cleanup: ${error?.message || String(error)}`);
+                });
+                await flushPendingOperationsNow().catch((error: any) => {
+                    this.outputChannel.appendLine(`[n8n-agent] Stream operation flush failed during cleanup: ${error?.message || String(error)}`);
                 });
             }
         }
