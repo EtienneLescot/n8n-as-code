@@ -1,0 +1,116 @@
+# TypeScript Type Definitions
+
+## n8n-nodes-base.html (v12)
+
+```typescript
+/**
+ * HTML Node - Version 1.2
+ * Work with HTML
+ */
+
+
+export interface HtmlV12Params {
+  operation?: 'generateHtmlTemplate' | 'extractHtmlContent' | 'convertToHtmlTable';
+/**
+ * HTML template to render
+ * @builderHint Use expressions to generate loops, reference data, etc. Does not support handlebars.
+ * @displayOptions.show { operation: ["generateHtmlTemplate"] }
+ */
+    html?: string;
+/**
+ * If HTML should be read from binary or JSON data
+ * @displayOptions.show { operation: ["extractHtmlContent"] }
+ * @default json
+ */
+    sourceData?: 'binary' | 'json' | Expression<string>;
+/**
+ * Input Binary Field
+ * @hint The name of the input binary field containing the file to be extracted
+ * @displayOptions.show { operation: ["extractHtmlContent"], sourceData: ["binary"] }
+ * @default data
+ */
+    dataPropertyName?: string | Expression<string>;
+/**
+ * Extraction Values
+ * @displayOptions.show { operation: ["extractHtmlContent"] }
+ * @default {"values":[{"key":"","cssSelector":"","returnValue":"text","returnArray":false}]}
+ */
+    extractionValues?: {
+        /** Values
+     */
+    values?: Array<{
+      /** The key under which the extracted value should be saved
+       */
+      key?: string | Expression<string>;
+      /** The CSS selector to use
+       */
+      cssSelector?: string | Expression<string>;
+      /** What kind of data should be returned
+       * @default text
+       */
+      returnValue?: 'attribute' | 'html' | 'text' | 'value' | Expression<string>;
+      /** The name of the attribute to return the value off
+       * @displayOptions.show { returnValue: ["attribute"] }
+       */
+      attribute?: string | Expression<string>;
+      /** Comma-separated list of selectors to skip in the text extraction
+       * @displayOptions.show { returnValue: ["text"] }
+       */
+      skipSelectors?: string | Expression<string>;
+      /** Whether to return the values as an array so if multiple ones get found they also get returned separately. If not set all will be returned as a single string.
+       * @default false
+       */
+      returnArray?: boolean | Expression<boolean>;
+    }>;
+  };
+/**
+ * Options
+ * @displayOptions.show { operation: ["extractHtmlContent"] }
+ * @default {}
+ */
+    options?: {
+    /** Whether to remove automatically all spaces and newlines from the beginning and end of the values
+     * @default true
+     */
+    trimValues?: boolean | Expression<boolean>;
+    /** Whether to remove leading and trailing whitespaces, line breaks (newlines) and condense multiple consecutive whitespaces into a single space
+     * @default true
+     */
+    cleanUpText?: boolean | Expression<boolean>;
+    /** Whether to capitalize the headers
+     * @default false
+     */
+    capitalize?: boolean | Expression<boolean>;
+    /** Whether to use custom styling
+     * @default false
+     */
+    customStyling?: boolean | Expression<boolean>;
+    /** Caption to add to the table
+     */
+    caption?: string | Expression<string>;
+    /** Attributes to attach to the table
+     */
+    tableAttributes?: string | Expression<string>;
+    /** Attributes to attach to the table header
+     */
+    headerAttributes?: string | Expression<string>;
+    /** Attributes to attach to the table row
+     */
+    rowAttributes?: string | Expression<string>;
+    /** Attributes to attach to the table cell
+     */
+    cellAttributes?: string | Expression<string>;
+  };
+}
+
+interface HtmlV12NodeBase {
+  type: 'n8n-nodes-base.html';
+  version: 1.2;
+}
+
+export type HtmlV12ParamsNode = HtmlV12NodeBase & {
+  config: NodeConfig<HtmlV12Params>;
+};
+
+export type HtmlV12Node = HtmlV12ParamsNode;
+```
