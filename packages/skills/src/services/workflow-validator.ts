@@ -282,51 +282,52 @@ export class WorkflowValidator {
   }
 
   /**
-   * Resolve the effective value of a display-condition parameter the way the
-   * n8n server does: the explicitly set parameter wins, otherwise the schema
-   * default of the version-appropriate property variant applies.
+   * Resolve the effective value of a display-condition parameter, mirroring
+   * the n8n server's own gating engine (validate_node_config /
+   * generate-zod-schemas + display-options.ts):
    *
-   * `/`-prefixed condition names always reference the node's root parameters;
-   * plain names reference the current parameter level first (nested fixed
-   * collection items), then the root level — mirroring n8n's own resolution.
+   * - `/`-prefixed condition names always reference the node's root parameters
+   *   and never fall back to schema defaults (the server generator skips `/`
+   *   and `@` keys when building its `defaults` map), so a missing root
+   *   parameter hides every dependent variant — e.g. `builtInTools` without an
+   *   explicit `responsesApiEnabled: true`;
+   * - plain names reference the current parameter level first (nested fixed
+   *   collection items), then the root level — and fall back to the schema
+   *   default of the version-relevant property variant when unset;
+   * - resource-locator values (`{ __rl: true, ... }`) are unwrapped to their
+   *   inner `value` before comparison.
    */
   private effectiveConditionValue(
     condParamName: string,
     nodeParams: Record<string, any>,
     rootParams: Record<string, any>,
-    levelProps: any[] | undefined,
-    rootProps: any[] | undefined,
-    node: any,
-    depth = 0
+    levelProps?: any[],
+    rootProps?: any[],
+    node?: any
   ): any {
     const isRoot = condParamName.startsWith('/');
     const name = isRoot ? condParamName.slice(1) : condParamName;
     const levelParams = isRoot ? rootParams : nodeParams;
 
-    if (this.hasOwnProperty(levelParams, name)) {
-      return levelParams[name];
+    let value = this.hasOwnProperty(levelParams, name) ? levelParams[name] : undefined;
+    if (value === undefined && !isRoot && this.hasOwnProperty(rootParams, name)) {
+      value = rootParams[name];
     }
-    if (depth > 3) {
-      return undefined;
+    if (value === undefined && !isRoot) {
+      for (const props of [levelProps, rootProps]) {
+        if (!Array.isArray(props)) continue;
+        const candidate = props.find((p: any) => p?.name === name && this.isVersionRelevant(p, node));
+        if (candidate && candidate.default !== undefined) {
+          value = candidate.default;
+          break;
+        }
+      }
     }
-
-    const propSource = isRoot ? rootProps || levelProps : levelProps;
-    const candidates = (propSource || []).filter(
-      (p: any) => p?.name === name && this.isVersionRelevant(p, node)
-    );
-    if (candidates.length === 0) {
-      return undefined;
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) &&
+        (value as any).__rl === true && this.hasOwnProperty(value, 'value')) {
+      return (value as any).value;
     }
-
-    // Prefer the variant whose non-@version conditions already hold for the
-    // provided parameters (e.g. promptType has separate "auto"/"define"
-    // variants with different defaults). Without any satisfied variant, fall
-    // back to the first version-relevant entry.
-    const satisfied = candidates.find((p: any) =>
-      this.isPropertyDisplayed(p, levelParams, levelParams, node, propSource, propSource, depth + 1)
-    );
-    const chosen = satisfied ?? candidates[0];
-    return chosen?.default;
+    return value;
   }
 
   private matchesVersionCondition(condition: any, nodeVersion: number): boolean {
@@ -360,25 +361,80 @@ export class WorkflowValidator {
   }
 
   /**
-   * Check whether a schema property's displayOptions conditions are satisfied
-   * by the effective parameters (explicit values first, schema defaults for
-   * missing condition parameters). If no displayOptions defined -> always shown.
+   * Narrow a property variant's displayOptions the way n8n's own schema
+   * generator does (narrowDisplayOptionsByDisabled): disabled states are
+   * subtracted from `show`, and disabled-only keys are merged into `hide`.
+   * When a `show` key is left with no settable values the variant is FULLY
+   * DISABLED (returns null) and must be dropped before any evaluation —
+   * e.g. the expression-prefilled memory `sessionKey` under
+   * `sessionIdType=fromInput`, which exists only to render a disabled UI
+   * field. This is why the live server only allows `sessionKey` when
+   * `sessionIdType="customKey"` and agent `text` when `promptType="define"`.
+   */
+  private narrowedDisplayOptions(prop: any): { show?: Record<string, unknown[]>; hide?: Record<string, unknown[]> } | null {
+    const displayOptions = prop?.displayOptions;
+    const disabledShow = prop?.disabledOptions?.show;
+    if (!disabledShow || typeof disabledShow !== 'object' || Array.isArray(disabledShow)) {
+      return displayOptions ?? {};
+    }
+
+    const narrowedShow: Record<string, unknown[]> = {};
+    const mergedHide: Record<string, unknown[]> = {};
+    for (const [key, values] of Object.entries((displayOptions?.hide ?? {}) as Record<string, unknown[]>)) {
+      mergedHide[key] = [...(Array.isArray(values) ? values : [])];
+    }
+
+    for (const [key, values] of Object.entries((displayOptions?.show ?? {}) as Record<string, unknown[]>)) {
+      const disabledValues = (disabledShow as Record<string, unknown[]>)[key];
+      if (!disabledValues) {
+        narrowedShow[key] = values;
+        continue;
+      }
+      const remaining = (Array.isArray(values) ? values : []).filter(
+        (v) => !(disabledValues as unknown[]).some((d) => JSON.stringify(d) === JSON.stringify(v))
+      );
+      if (remaining.length === 0) {
+        return null;
+      }
+      narrowedShow[key] = remaining;
+    }
+
+    for (const [key, values] of Object.entries(disabledShow as Record<string, unknown[]>)) {
+      if (displayOptions?.show && key in displayOptions.show) continue;
+      const existing = mergedHide[key] ?? [];
+      const seen = new Set(existing.map((v) => JSON.stringify(v)));
+      for (const v of (Array.isArray(values) ? values : [])) {
+        if (!seen.has(JSON.stringify(v))) existing.push(v);
+      }
+      mergedHide[key] = existing;
+    }
+
+    const result: { show?: Record<string, unknown[]>; hide?: Record<string, unknown[]> } = {};
+    if (Object.keys(narrowedShow).length > 0) result.show = narrowedShow;
+    if (Object.keys(mergedHide).length > 0) result.hide = mergedHide;
+    return result;
+  }
+
+  /**
+   * Check whether ALREADY-NARROWED display conditions are satisfied by the
+   * effective parameter values (see {@link effectiveConditionValue}).
+   * If no displayOptions defined -> always shown.
    *
    * `levelProps` / `rootProps` carry the property lists whose defaults may
-   * satisfy condition parameters at the current level / at the node root.
+   * satisfy non-slash condition parameters at the current level / at the node
+   * root.
    */
-  private isPropertyDisplayed(
-    prop: any,
+  private matchesDisplayConditions(
+    displayOptions: { show?: Record<string, unknown[]>; hide?: Record<string, unknown[]> },
     nodeParams: Record<string, any>,
     rootParams: Record<string, any> = nodeParams,
     node?: any,
     levelProps?: any[],
-    rootProps?: any[],
-    depth = 0
+    rootProps?: any[]
   ): boolean {
     const nodeVersion = this.nodeVersionOf(node);
 
-    const hide = prop.displayOptions?.hide;
+    const hide = displayOptions?.hide;
     if (hide && typeof hide === 'object') {
       for (const [condParamName, hiddenValues] of Object.entries(hide)) {
         if (condParamName === '@version') {
@@ -386,12 +442,12 @@ export class WorkflowValidator {
           continue;
         }
         if (!Array.isArray(hiddenValues)) continue;
-        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
+        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node);
         if (hiddenValues.includes(actualValue)) return false;
       }
     }
 
-    const show = prop.displayOptions?.show;
+    const show = displayOptions?.show;
     if (!show || typeof show !== 'object') return true;
 
     for (const [condParamName, allowedValues] of Object.entries(show)) {
@@ -400,13 +456,34 @@ export class WorkflowValidator {
         continue;
       }
       if (!Array.isArray(allowedValues)) continue;
-      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
+      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node);
       // An expression cannot be resolved statically: never treat the property as
       // hidden on its account (it may satisfy the condition at run time).
       if (this.isExpressionValue(actualValue)) continue;
       if (!allowedValues.includes(actualValue)) return false;
     }
     return true;
+  }
+
+  /**
+   * Check whether a schema property's displayOptions conditions are satisfied
+   * by the effective parameter values: the variant is first narrowed by its
+   * `disabledOptions` (fully disabled variants are never displayed), then its
+   * remaining conditions are evaluated. If no displayOptions defined ->
+   * always shown.
+   */
+  private isPropertyDisplayed(
+    prop: any,
+    nodeParams: Record<string, any>,
+    rootParams: Record<string, any> = nodeParams,
+    node?: any,
+    levelProps?: any[],
+    rootProps?: any[],
+    _depth = 0
+  ): boolean {
+    const narrowed = this.narrowedDisplayOptions(prop);
+    if (narrowed === null) return false;
+    return this.matchesDisplayConditions(narrowed, nodeParams, rootParams, node, levelProps, rootProps);
   }
 
   /**
@@ -462,9 +539,9 @@ export class WorkflowValidator {
     return String(value);
   }
 
-  private variantConditionText(prop: any): string {
+  private variantConditionText(displayOptions: { show?: Record<string, unknown[]>; hide?: Record<string, unknown[]> } | null | undefined): string {
     const conds: string[] = [];
-    const render = (map: any, negated: boolean) => {
+    const render = (map: Record<string, unknown[]> | undefined, negated: boolean) => {
       for (const [key, values] of Object.entries(map ?? {})) {
         if (key === '@version') continue;
         if (!Array.isArray(values)) continue;
@@ -475,8 +552,8 @@ export class WorkflowValidator {
         }
       }
     };
-    render(prop.displayOptions?.show, false);
-    render(prop.displayOptions?.hide, true);
+    render(displayOptions?.show, false);
+    render(displayOptions?.hide, true);
     return conds.join(', ');
   }
 
@@ -487,7 +564,7 @@ export class WorkflowValidator {
     return `${dotted}.${paramKey}`;
   }
 
-  private hiddenParametersMessage(dottedPath: string, failingVariants: any[]): string {
+  private hiddenParametersMessage(dottedPath: string, failingVariants: Array<{ show?: Record<string, unknown[]>; hide?: Record<string, unknown[]> }>): string {
     const label = `Field "${dottedPath}": This field is only allowed`;
     const descriptions = failingVariants.map((v) => this.variantConditionText(v)).filter(Boolean);
     if (descriptions.length === 0) {
@@ -521,8 +598,13 @@ export class WorkflowValidator {
       const relevant = variants.filter((p: any) => this.isVersionRelevant(p, node));
       if (relevant.length === 0) continue; // parameter belongs to another typeVersion
 
-      const shown = relevant.filter((p: any) =>
-        this.isPropertyDisplayed(p, params, rootParams, node, schemaProps, rootSchemaProps)
+      // Narrow each variant (disabled-only states are dropped, exactly like the
+      // server's generated schemas) and keep only the ruled-in ones.
+      const narrowed = relevant
+        .map((p: any) => this.narrowedDisplayOptions(p))
+        .filter((d): d is { show?: Record<string, unknown[]>; hide?: Record<string, unknown[]> } => d !== null);
+      const shown = narrowed.filter((d) =>
+        this.matchesDisplayConditions(d, params, rootParams, node, schemaProps, rootSchemaProps)
       );
       if (shown.length > 0) continue;
 
@@ -530,7 +612,7 @@ export class WorkflowValidator {
         type: 'error',
         nodeId: node.id,
         nodeName: node.name,
-        message: this.hiddenParametersMessage(this.parameterDottedPath(path, paramKey), relevant),
+        message: this.hiddenParametersMessage(this.parameterDottedPath(path, paramKey), narrowed),
         path: `${path}.${paramKey}`,
       });
     }

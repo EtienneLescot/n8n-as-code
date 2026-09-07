@@ -1049,8 +1049,9 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         parameters,
     });
 
-    it("rejects a param whose schema variants are all hidden (displayOptions defaults-aware)", async () => {
-        // text is only allowed when promptType="define" or "auto"; fromInput hides every variant.
+    it("rejects a param whose schema variants are all hidden (explicit condition values)", async () => {
+        // The define variant is the only surviving one (the auto variant is
+        // fully disabled); fromInput matches neither -> rejection lists define only.
         const result = await gateValidator().validateWorkflow({
             nodes: [node("n8n-nodes-test.demoAgent", { promptType: "fromInput", text: "hello" }, 3.1)],
             connections: {},
@@ -1058,16 +1059,21 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         expect(result.valid).toBe(false);
         const err = result.errors.find((e) => e.message.includes("parameters.text"));
         expect(err).toBeDefined();
-        expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
+        expect(err!.message).toContain('This field is only allowed when: promptType="define"');
     });
 
-    it("resolves condition defaults so an omitted promptType is evaluated as auto (server semantics)", async () => {
-        // promptType omitted -> schema default "auto" -> the auto text variant is shown.
+    it("resolves a missing non-slash condition through its schema default (server semantics)", async () => {
+        // The auto text variant is fully disabled (expression-prefilled,
+        // disabled UI field), so the omitted promptType falls back to "auto"
+        // but matches no surviving variant -> rejection, like the server.
         const result = await gateValidator().validateWorkflow({
-            nodes: [node("n8n-nodes-test.demoAgent", { text: "={{ $json.chatInput }}" }, 3.1)],
+            nodes: [node("n8n-nodes-test.demoAgent", { text: "hi" }, 3.1)],
             connections: {},
         });
-        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.text"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when: promptType="define"');
     });
 
     it("accepts text when the displayed variant condition is satisfied", async () => {
@@ -1076,6 +1082,22 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
             connections: {},
         });
         expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+    });
+
+    it("drops fully-disabled variants before gating: the fromInput sessionKey variant does not exist", async () => {
+        // The fixture models the raw schema (fromInput variant + disabledOptions,
+        // like the live memoryBufferWindow description). Narrowing must remove it,
+        // so an explicit fromInput + sessionKey is rejected exactly like the
+        // server does — the message only lists the customKey alternative.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoMemory", { sessionIdType: "fromInput", sessionKey: "k" }, 1.4)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.sessionKey"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when: sessionIdType="customKey"');
+        expect(err!.message).not.toContain("fromInput");
     });
 
     it("rejects sessionKey when sessionIdType default (fromInput) hides every variant", async () => {
@@ -1104,6 +1126,20 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         });
         expect(result.valid).toBe(false);
         expect(result.errors.some((e) => e.message.includes("parameters.systemMessage") && e.message.includes("/useSystemMessage"))).toBe(true);
+    });
+
+    it("rejects builtInTools when responsesApiEnabled is omitted, despite its schema default true", async () => {
+        // The lmChatOpenAi failure mode measured in the benchmark: the schema
+        // declares @default true for responsesApiEnabled, but the live server
+        // evaluates display conditions on explicit values only.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { builtInTools: {} }, 3.1)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.builtInTools"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('/responsesApiEnabled=true');
     });
 
     it("reports multi-variant gating like the server (one-of phrasing)", async () => {
@@ -1184,5 +1220,20 @@ describe("WorkflowValidator - expression conditions and strict resource-locator 
         });
         expect(bad.valid).toBe(false);
         expect(bad.errors.some((e) => e.message.includes("must be an object shaped like"))).toBe(true);
+    });
+
+    it("unwraps resource-locator values when evaluating display conditions", async () => {
+        // calendar = { __rl: true, value: 'primary' } satisfies show calendar=['primary'].
+        const ok = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlcCond", { calendar: { __rl: true, mode: "id", value: "primary" }, eventTitle: "Daily" }, 1)],
+            connections: {},
+        });
+        expect(ok.errors.filter((e) => e.message.includes("parameters.eventTitle"))).toHaveLength(0);
+
+        const bad = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlcCond", { calendar: { __rl: true, mode: "id", value: "other" }, eventTitle: "Daily" }, 1)],
+            connections: {},
+        });
+        expect(bad.errors.some((e) => e.message.includes("parameters.eventTitle"))).toBe(true);
     });
 });
