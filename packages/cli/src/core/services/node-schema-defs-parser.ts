@@ -24,6 +24,8 @@ export interface ParsedNodeSchemaProperty {
 export interface ParsedNodeSchemaSection {
     type: string;
     version: number;
+    resource?: string;
+    operation?: string;
     properties: ParsedNodeSchemaProperty[];
 }
 
@@ -244,6 +246,12 @@ export function parseNodeTypeDefinitions(definitions: string): ParsedNodeSchemaS
         const end = h + 1 < headers.length ? headers[h + 1].start : definitions.length;
         const body = definitions.slice(headers[h].start, end);
 
+        // Resource-scoped defs are annotated with a discriminator line, e.g.
+        // `* Discriminator: resource=message, operation=getAll`.
+        const discriminator = body.match(/Discriminator:\s*resource=([^\s,]+)(?:,\s*operation=([^\s]+))?/);
+        const resource = discriminator?.[1];
+        const operation = discriminator?.[2];
+
         // Locate the `<X>Params` declaration (interface or type alias) and slice
         // until ITS closing brace.
         const paramsOpen = body.match(/(?:interface|type)\s+\w+Params\s*(?:=\s*)?\{/);
@@ -265,6 +273,8 @@ export function parseNodeTypeDefinitions(definitions: string): ParsedNodeSchemaS
             type: headers[h].type,
             // The generator encodes the version without a dot (1.4 → 14, 3.1 → 31).
             version: headers[h].version / 10,
+            ...(resource ? { resource } : {}),
+            ...(operation ? { operation } : {}),
             properties: parseParamsInterfaceBody(innerLines),
         });
     }
