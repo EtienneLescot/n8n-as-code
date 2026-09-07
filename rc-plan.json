@@ -1,8 +1,8 @@
 {
   "mode": "rc",
   "changed": true,
-  "rcNumber": 2,
-  "releaseVersion": "2.6.0-rc.2",
+  "rcNumber": 3,
+  "releaseVersion": "2.6.0-rc.3",
   "packages": [
     {
       "name": "@n8n-as-code/transformer",
@@ -12,7 +12,7 @@
       "publishTarget": "npm",
       "tagPrefix": "@n8n-as-code/transformer@",
       "internalDependencies": [],
-      "currentVersion": "2.0.1-rc.1",
+      "currentVersion": "2.0.1-rc.2",
       "latestStableTag": "@n8n-as-code/transformer@v2.0.0",
       "latestStableVersion": "2.0.0",
       "bump": "patch",
@@ -40,7 +40,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.1-rc.2"
+      "rcVersion": "2.0.1-rc.3"
     },
     {
       "name": "@n8n-as-code/telemetry",
@@ -71,7 +71,7 @@
       "internalDependencies": [
         "@n8n-as-code/transformer"
       ],
-      "currentVersion": "2.0.1-rc.1",
+      "currentVersion": "2.0.1-rc.2",
       "latestStableTag": "@n8n-as-code/workflow-core@v2.0.0",
       "latestStableVersion": "2.0.0",
       "bump": "patch",
@@ -83,7 +83,7 @@
         "dependency:@n8n-as-code/transformer",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.1-rc.2"
+      "rcVersion": "2.0.1-rc.3"
     },
     {
       "name": "@n8n-as-code/manager-adapter",
@@ -95,7 +95,7 @@
       "internalDependencies": [
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.0.5-rc.1",
+      "currentVersion": "2.0.5-rc.2",
       "latestStableTag": "@n8n-as-code/manager-adapter@v2.0.4",
       "latestStableVersion": "2.0.4",
       "bump": "patch",
@@ -107,7 +107,7 @@
         "dependency:@n8n-as-code/workflow-core",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.5-rc.2"
+      "rcVersion": "2.0.5-rc.3"
     },
     {
       "name": "@n8n-as-code/skills",
@@ -120,7 +120,7 @@
         "@n8n-as-code/telemetry",
         "@n8n-as-code/transformer"
       ],
-      "currentVersion": "2.4.0-rc.1",
+      "currentVersion": "2.4.0-rc.2",
       "latestStableTag": "@n8n-as-code/skills@v2.3.2",
       "latestStableVersion": "2.3.2",
       "bump": "minor",
@@ -258,7 +258,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.4.0-rc.2"
+      "rcVersion": "2.4.0-rc.3"
     },
     {
       "name": "n8nac",
@@ -275,7 +275,7 @@
         "@n8n-as-code/transformer",
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.6.0-rc.1",
+      "currentVersion": "2.6.0-rc.2",
       "latestStableTag": "n8nac@v2.5.0",
       "latestStableVersion": "2.5.0",
       "bump": "minor",
@@ -358,7 +358,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.6.0-rc.2"
+      "rcVersion": "2.6.0-rc.3"
     },
     {
       "name": "@n8n-as-code/mcp",
@@ -371,7 +371,7 @@
         "@n8n-as-code/telemetry",
         "n8nac"
       ],
-      "currentVersion": "2.1.3-rc.1",
+      "currentVersion": "2.1.3-rc.2",
       "latestStableTag": "@n8n-as-code/mcp@v2.1.2",
       "latestStableVersion": "2.1.2",
       "bump": "patch",
@@ -383,7 +383,7 @@
         "dependency:n8nac",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.1.3-rc.2"
+      "rcVersion": "2.1.3-rc.3"
     },
     {
       "name": "n8n-as-code",
@@ -399,7 +399,7 @@
         "@n8n-as-code/workflow-core",
         "n8nac"
       ],
-      "currentVersion": "2.42.0-rc.1",
+      "currentVersion": "2.42.0-rc.2",
       "latestStableTag": "n8n-as-code@v2.40.0",
       "latestStableVersion": "2.40.0",
       "bump": "patch",
@@ -407,6 +407,16 @@
       "changed": true,
       "targetVersion": "2.42.0",
       "commits": [
+        {
+          "sha": "eb0140f3ae0670dd88a09899be1b5e954ff6a2d0",
+          "subject": "fix(vscode-extension): drop stale running operation events after abort and terminal state",
+          "bump": "patch"
+        },
+        {
+          "sha": "bb07bea4dc107613b498251c0997710d323090d5",
+          "subject": "fix(vscode-extension): coalesce running operation stream events to unfreeze workbench chat",
+          "bump": "patch"
+        },
         {
           "sha": "5d301682ba595934ea7e550eb5f63d398a42191c",
           "subject": "fix(release): publish pre-releases with next dist-tag and mirror to rc",
@@ -442,7 +452,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.42.0-rc.2"
+      "rcVersion": "2.42.0-rc.3"
     },
     {
       "name": "@n8n-as-code/n8nac",
@@ -455,7 +465,7 @@
         "@n8n-as-code/telemetry",
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.3.0-rc.1",
+      "currentVersion": "2.3.0-rc.2",
       "latestStableTag": "@n8n-as-code/n8nac@v2.2.1",
       "latestStableVersion": "2.2.1",
       "bump": "minor",
@@ -483,7 +493,7 @@
         "direct",
         "version-ahead-of-tag"
       ],
-      "rcVersion": "2.3.0-rc.2"
+      "rcVersion": "2.3.0-rc.3"
     }
   ]
 }
