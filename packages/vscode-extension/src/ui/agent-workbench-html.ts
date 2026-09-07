@@ -3086,6 +3086,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 };
                 if (idx >= 0) entries[idx] = opEntry;
                 else insertBeforeFinalAssistant(entries, opEntry);
+                if (opEntry.status === 'running') deferRender = true;
             } else if (event.type === 'progress') {
                 const idx = findMatchingPendingOperationIndex(entries, '', event.title, event.phase || 'phase');
                 const progressEntry = {
@@ -3099,6 +3100,7 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                 };
                 if (idx >= 0) entries[idx] = progressEntry;
                 else insertBeforeFinalAssistant(entries, progressEntry);
+                if (progressEntry.status === 'running') deferRender = true;
             } else if (event.type === 'compaction') {
                 const compactionEntry = { kind: 'compaction', id: crypto.randomUUID(), timestamp: Date.now(), event: event };
                 entries.push(compactionEntry);
