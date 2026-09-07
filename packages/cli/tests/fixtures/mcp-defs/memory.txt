@@ -1,0 +1,42 @@
+# TypeScript Type Definitions
+
+## @n8n/n8n-nodes-langchain.memoryBufferWindow (v14)
+
+```typescript
+/**
+ * Simple Memory Node - Version 1.4
+ * Stores in n8n memory, so no credentials required
+ */
+
+
+export interface LcMemoryBufferWindowV14Params {
+/**
+ * Session ID
+ * @builderHint Use 'Connected Chat Trigger Node' (fromInput) if there is a Chat Trigger node earlier in the workflow. Otherwise use 'Define below' (customKey).
+ * @default fromInput
+ */
+    sessionIdType?: 'fromInput' | 'customKey' | Expression<string>;
+/**
+ * The key to use to store session ID in the memory
+ * @displayOptions.show { sessionIdType: ["customKey"] }
+ */
+    sessionKey?: string | Expression<string>;
+/**
+ * Context Window Length
+ * @hint How many past interactions the model receives as context
+ * @default 5
+ */
+    contextWindowLength?: number | Expression<number>;
+}
+
+interface LcMemoryBufferWindowV14NodeBase {
+  type: '@n8n/n8n-nodes-langchain.memoryBufferWindow';
+  version: 1.4;
+}
+
+export type LcMemoryBufferWindowV14ParamsNode = LcMemoryBufferWindowV14NodeBase & {
+  config: NodeConfig<LcMemoryBufferWindowV14Params>;
+};
+
+export type LcMemoryBufferWindowV14Node = LcMemoryBufferWindowV14ParamsNode;
+```

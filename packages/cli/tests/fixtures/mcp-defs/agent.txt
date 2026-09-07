@@ -1,0 +1,142 @@
+# TypeScript Type Definitions
+
+## @n8n/n8n-nodes-langchain.agent (v31)
+
+```typescript
+/**
+ * AI Agent Node - Version 3.1
+ * Generates an action plan and executes it. Can use external tools.
+ */
+
+
+export interface LcAgentV31Params {
+/**
+ * Source for Prompt (User Message)
+ * @builderHint Use 'auto' when following a chat trigger, 'define' when custom prompt needed
+ * @default auto
+ */
+    promptType?: 'auto' | 'define' | Expression<string>;
+/**
+ * Prompt (User Message)
+ * @builderHint Use expressions to include dynamic data from previous nodes (e.g., expr('{{ $json.input }}')). Static text prompts ignore incoming data.
+ * @placeholderSupported false
+ * @displayOptions.show { promptType: ["define"] }
+ */
+    text: string | Expression<string>;
+/**
+ * Require Specific Output Format
+ * @builderHint Set to `true` when you need structured JSON output. The agent then requires an `outputParser` entry in its `subnodes` config (typically an `outputParserStructured` node defined via the `outputParser({...})` SDK factory). With `hasOutputParser: false` the agent returns a plain string in `$json.output`.
+ * @default false
+ */
+    hasOutputParser?: boolean;
+  needsFallback?: boolean;
+  options?: {
+    /** The message that will be sent to the agent before the conversation starts
+     * @builderHint Must include: agent's purpose, exact names of connected tools, and response instructions
+     * @default You are a helpful assistant
+     */
+    systemMessage?: string | Expression<string>;
+    /** The maximum number of iterations the agent will run before stopping
+     * @default 10
+     */
+    maxIterations?: number | Expression<number>;
+    /** Whether or not the output should include intermediate steps the agent took
+     * @default false
+     */
+    returnIntermediateSteps?: boolean | Expression<boolean>;
+    /** Whether or not binary images should be automatically passed through to the agent as image type messages
+     * @default true
+     */
+    passthroughBinaryImages?: boolean | Expression<boolean>;
+    /** Whether or not binary PDF documents should be automatically passed through to the agent. Useful for models that natively support PDF input (e.g. Google Gemini).
+     * @default false
+     */
+    passthroughBinaryPdfs?: boolean | Expression<boolean>;
+    /** Custom metadata added to tracing events
+     * @default {}
+     */
+    tracingMetadata?: {
+        /** Metadata
+     */
+    values?: Array<{
+      /** Key
+       */
+      key?: string | Expression<string>;
+      /** The field value type
+       * @default stringValue
+       */
+      type?: 'arrayValue' | 'booleanValue' | 'numberValue' | 'objectValue' | 'stringValue' | Expression<string>;
+      /** Value
+       * @displayOptions.show { type: ["stringValue"] }
+       */
+      stringValue?: string | Expression<string>;
+      /** Value
+       * @displayOptions.show { type: ["numberValue"] }
+       */
+      numberValue?: string | Expression<string>;
+      /** Value
+       * @displayOptions.show { type: ["booleanValue"] }
+       * @default true
+       */
+      booleanValue?: 'true' | 'false' | Expression<string>;
+      /** Value
+       * @displayOptions.show { type: ["arrayValue"] }
+       */
+      arrayValue?: string | Expression<string>;
+      /** Value
+       * @displayOptions.show { type: ["objectValue"] }
+       * @default ={}
+       */
+      objectValue?: IDataObject | string | Expression<string>;
+    }>;
+  };
+    /** Whether to automatically save &lt;a href="https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.executiondata/" target="_blank"&gt;highlighted data&lt;/a&gt;. This data can then be used to filter executions in the Executions view. Available on Pro and Enterprise plans in n8n Cloud, and on Enterprise or registered Community Edition for self-hosted. Defaults to true.
+     * @default true
+     */
+    autoSaveHighlightedData?: boolean | Expression<boolean>;
+    /** Whether this agent will stream the response in real-time as it generates text
+     * @default true
+     */
+    enableStreaming?: boolean | Expression<boolean>;
+    /** Batch processing options for rate limiting
+     * @default {}
+     */
+    batching?: {
+    /** How many items to process in parallel. This is useful for rate limiting, but might impact the log output ordering.
+     * @default 1
+     */
+    batchSize?: number | Expression<number>;
+    /** Delay in milliseconds between batches. This is useful for rate limiting.
+     * @default 0
+     */
+    delayBetweenBatches?: number | Expression<number>;
+  };
+    /** The maximum number of tokens to read from the chat memory history. Set to 0 to read all history.
+     * @default 0
+     */
+    maxTokensFromMemory?: unknown;
+  };
+}
+
+export interface LcAgentV31SubnodeConfig {
+  model: LanguageModelInstance | LanguageModelInstance[];
+  memory?: MemoryInstance;
+  tools?: ToolInstance[];
+  /**
+   * @displayOptions.show { hasOutputParser: [true] }
+   */
+  outputParser?: OutputParserInstance;
+}
+
+interface LcAgentV31NodeBase {
+  type: '@n8n/n8n-nodes-langchain.agent';
+  version: 3.1;
+  isTrigger: true;
+}
+
+export type LcAgentV31ParamsNode = LcAgentV31NodeBase & {
+  config: NodeConfig<LcAgentV31Params> & { subnodes: LcAgentV31SubnodeConfig };
+};
+
+export type LcAgentV31Node = LcAgentV31ParamsNode;
+```

@@ -1,7 +1,9 @@
 import { BaseCommand, captureEmittedErrors, formatConnectionError } from './base.js';
 import { SyncManager, WorkflowSyncStatus, type IPushPublishReport } from '../core/index.js';
-import { PreflightNodeValidator } from '../core/index.js';
+import { PreflightNodeValidator, type PreflightNodeValidatorOptions } from '../core/index.js';
+import { SchemaOverlayManager } from '../core/index.js';
 import { WorkflowValidator } from '@n8n-as-code/skills';
+import { effectiveNativeMcpLevel } from '../services/config-service.js';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
@@ -321,12 +323,14 @@ export class SyncCommand extends BaseCommand {
     /**
      * Validate a local workflow file before anything is written to the instance.
      *
-     * Validation model — local by default, instance as the authoritative upgrade:
-     * the bundled node schema always runs first (no network required); when the
-     * target instance is known, its own MCP endpoint (`validate_node_config`) is
-     * additionally probed with the environment API key — which authenticates on
-     * self-hosted instances with the MCP server enabled. An explicitly configured
-     * native-MCP token is used when present (n8n Cloud).
+     * Validation is driven by the environment's native MCP usage level
+     * (cumulative ladder, see `IWorkspaceNativeMcpLevel`):
+     *   level 0 — bundled ontology only, no MCP call at all;
+     *   level 1 — refresh the per-instance schema overlay from `get_node_types`
+     *             (lazy per node type, TTL-cached), then validate locally against
+     *             the merged bundled+overlay schema — economical across pushes;
+     *   level ≥ 2 — validate live against the instance's `validate_node_config`
+     *             (authoritative, immune to bundled-schema drift).
      *
      * Returns null when validation is skipped (opt-out env var, or the workflow
      * file cannot be compiled locally — the push itself then reports the real
@@ -340,29 +344,49 @@ export class SyncCommand extends BaseCommand {
         const environment = this.activeEnvironment;
         const host = environment?.host || this.config?.host;
         const nativeMcp = environment?.nativeMcp;
-        const flagEnabled = /^(1|true|yes|on)$/i.test(process.env.N8NAC_NATIVE_MCP_ENABLED || '');
+        const level = effectiveNativeMcpLevel(nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL);
 
-        let endpoint: string | undefined;
-        let token: string | undefined;
-        if (host) {
-            // Automatic probe by default: derived endpoint, environment API key.
-            // Explicit assist configuration (nativeMcp url/enabled or the env flag)
-            // only pins the endpoint/token choice and the timeout.
-            endpoint = nativeMcp?.url || `${host.replace(/\/+$/, '')}/mcp-server/http`;
+        const validatorOptions: PreflightNodeValidatorOptions = {};
+
+        if (level >= 1 && host) {
+            const endpoint = nativeMcp?.url || `${host.replace(/\/+$/, '')}/mcp-server/http`;
+            let token: string | undefined;
             try {
                 token = this.configService.getNativeMcpToken(environment?.environmentId) || environment?.apiKey;
             } catch {
                 token = environment?.apiKey;
             }
+            const timeoutMs = nativeMcp?.timeoutMs ?? 10000;
+
+            if (level >= 2) {
+                validatorOptions.endpoint = endpoint;
+                validatorOptions.token = token;
+                validatorOptions.timeoutMs = timeoutMs;
+            } else {
+                // Level 1: schema overlay, validated locally. The overlay path is
+                // deterministic; the beforeValidate hook fetches whatever is
+                // missing or expired for this workflow's node types.
+                const cacheDir = environment?.workflowsPath || this.config?.directory;
+                const overlay = new SchemaOverlayManager({ endpoint, token, timeoutMs, cacheDir });
+                let overlayUsable = true;
+                validatorOptions.customNodesPath = () => (overlayUsable ? overlay.providerFilePath : undefined);
+                validatorOptions.beforeValidate = async (workflow) => {
+                    try {
+                        const { failed } = await overlay.ensureForTypes(SchemaOverlayManager.collectNodeTypes(workflow));
+                        if (failed.length > 0) {
+                            console.warn(chalk.yellow(`⚠  Schema overlay incomplete (${failed.join(', ')} not described by the instance); those nodes fall back to the bundled schema.`));
+                        }
+                    } catch (error: any) {
+                        // Overlay refresh failed (unreachable/unauthorised):
+                        // fall back to the bundled schema for this push, and surface it.
+                        overlayUsable = false;
+                        console.warn(chalk.yellow(`⚠  Schema overlay refresh unavailable (${error?.message || error}); validating against the bundled schema.`));
+                    }
+                };
+            }
         }
 
-        const validator = endpoint
-            ? new PreflightNodeValidator({
-                endpoint,
-                token,
-                timeoutMs: nativeMcp?.timeoutMs ?? (nativeMcp?.enabled || flagEnabled ? 10000 : 3000),
-            })
-            : new PreflightNodeValidator();
+        const validator = new PreflightNodeValidator(validatorOptions);
         try {
             return await validator.validateFile(absolutePath);
         } catch (error: any) {
