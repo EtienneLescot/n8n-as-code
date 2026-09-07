@@ -124,6 +124,8 @@ function downloadJson(url) {    return new Promise((resolve, reject) => {
  * Same contract as downloadJson but with an `Accept` header the npm registry
  * honors (it answers 406 to the GitHub-specific `application/vnd.github+json`).
  */
+const NPM_REQUEST_TIMEOUT_MS = 15000;
+
 function downloadNpmJson(url) {
     return new Promise((resolve, reject) => {
         const headers = {
@@ -131,11 +133,16 @@ function downloadNpmJson(url) {
             'Accept': 'application/json',
         };
 
-        const request = https.get(url, { headers }, (response) => {
+        // Bounded so a hung registry cannot stall resolveSourceTag forever.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), NPM_REQUEST_TIMEOUT_MS);
+
+        const request = https.get(url, { headers, signal: controller.signal }, (response) => {
             let data = '';
 
             response.on('data', chunk => data += chunk);
             response.on('end', () => {
+                clearTimeout(timer);
                 const status = response.statusCode || 0;
 
                 if (status !== 200) {
@@ -151,7 +158,10 @@ function downloadNpmJson(url) {
             });
         });
 
-        request.on('error', reject);
+        request.on('error', (error) => {
+            clearTimeout(timer);
+            reject(error);
+        });
     });
 }
 

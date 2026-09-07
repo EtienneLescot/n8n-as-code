@@ -51,6 +51,17 @@ function readAgentsMdVersion(projectRoot: string): string | undefined {
     return match?.[1];
 }
 
+/** Reads the native MCP level stamp embedded in an existing AGENTS.md, or undefined if absent. */
+function readAgentsMdLevel(projectRoot: string): number | undefined {
+    const agentsMdPath = join(projectRoot, 'AGENTS.md');
+    if (!existsSync(agentsMdPath)) return undefined;
+    const content = readFileSync(agentsMdPath, 'utf8');
+    const match = content.match(/<!--\s*n8nac-mcp-level:\s*(\d+)\s*-->/);
+    if (!match) return undefined;
+    const parsed = Number.parseInt(match[1], 10);
+    return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
 function quoteShellArg(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`;
 }
@@ -145,7 +156,9 @@ export class UpdateAiCommand {
     /**
      * Fire-and-forget check: if AGENTS.md is missing a version stamp or the stamped version
      * differs from the installed n8nac CLI version, silently regenerates AI context files.
-     * Safe to call at the top of any command — never throws.
+     * The native MCP level stamp is part of the fingerprint: a level change regenerates
+     * even when the CLI version is unchanged. Safe to call at the top of any
+     * command — never throws.
      */
     static async checkAndRefreshIfStale(projectRoot: string): Promise<void> {
         try {
@@ -155,7 +168,13 @@ export class UpdateAiCommand {
             const stampedVersion = readAgentsMdVersion(projectRoot);
             const currentVersion = getCliVersion();
 
-            if (currentVersion && stampedVersion === currentVersion) return; // already up-to-date
+            if (currentVersion && stampedVersion === currentVersion) {
+                const stampedLevel = readAgentsMdLevel(projectRoot);
+                const currentLevel = resolveActiveNativeMcpLevel(projectRoot)?.level;
+                // No level comparison possible (no pinned environment, or a
+                // pre-fingerprint file with nothing configured): keep the file.
+                if (currentLevel === undefined || stampedLevel === currentLevel) return;
+            }
 
             await new UpdateAiCommand(new Command()).run({ silent: true, projectRoot });
         } catch {

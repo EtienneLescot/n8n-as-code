@@ -113,4 +113,53 @@ describe('SchemaOverlayManager', () => {
         expect(calls).toBe(1);
         expect(manager.isFresh(types)).toBe(true);
     });
+
+    it('keeps discriminator variants of one type separate (resource/operation identity)', async () => {
+        const combo = (resource: string, operation: string, marker: string) => [
+            '# TypeScript Type Definitions',
+            '',
+            '## n8n-nodes-base.gmailTool (v22)',
+            '',
+            '```typescript',
+            `* Discriminator: resource=${resource}, operation=${operation}`,
+            'export interface GmailV22Params {',
+            `    marker?: '${marker}';`,
+            '}',
+            '```',
+            '',
+        ].join('\n');
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => ({
+                    structuredContent: {
+                        definitions: `${combo('message', 'get_all', 'getAllMarker')}\n${combo('message', 'send', 'sendMarker')}`,
+                    },
+                }),
+            } as any,
+        });
+        const getAll = { type: 'n8n-nodes-base.gmailTool', version: '2.2', resource: 'message', operation: 'get_all' };
+        const send = { type: 'n8n-nodes-base.gmailTool', version: '2.2', resource: 'message', operation: 'send' };
+        const result = await manager.ensureForTypes([getAll, send]);
+        expect(result.failed).toEqual([]);
+
+        // Freshness is tracked per full identity, not per type@version.
+        expect(manager.isFresh([getAll])).toBe(true);
+        expect(manager.isFresh([send])).toBe(true);
+        expect(manager.isFresh([{ ...getAll, operation: 'delete' }])).toBe(false);
+
+        const provider = JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8'));
+        const props = provider.nodes['n8n-nodes-base.gmailTool'].schema.properties;
+        const getAllProp = props.find((p: any) => p.name === 'marker' && p.displayOptions?.show?.operation?.includes('get_all'));
+        const sendProp = props.find((p: any) => p.name === 'marker' && p.displayOptions?.show?.operation?.includes('send'));
+        expect(getAllProp).toBeDefined();
+        expect(sendProp).toBeDefined();
+        // Both variants stay distinguishable: no cross-contamination of conditions.
+        expect(getAllProp.displayOptions.show.operation).toEqual(['get_all']);
+        expect(sendProp.displayOptions.show.operation).toEqual(['send']);
+    });
 });

@@ -114,6 +114,46 @@ describe('native n8n MCP config', () => {
         expect(config.enabled).toBe(false);
         expect(config.endpoint).toBe('https://workspace.example.test/mcp-server/http');
         expect(config.mode).toBe('off');
+        expect(config.level).toBe(0);
+    });
+
+    test('accepts an explicit level 0 as a disabled override', () => {
+        const config = loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+            N8NAC_NATIVE_MCP_LEVEL: '0',
+        });
+
+        expect(config.level).toBe(0);
+    });
+
+    test('rejects partial numeric level values instead of truncating them', () => {
+        const truncated = loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+            N8NAC_NATIVE_MCP_LEVEL: '2foo',
+        });
+        expect(truncated.level).toBe(3);
+
+        const fractional = loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+            N8NAC_NATIVE_MCP_LEVEL: '2.5',
+        });
+        expect(fractional.level).toBe(3);
+    });
+
+    test('prefers an explicit workspace level over the legacy default', () => {
+        const config = loadNativeMcpConfig({}, {
+            workspace: {
+                enabled: true,
+                url: 'https://workspace.example.test/mcp-server/http',
+                token: 'workspace-token',
+                level: 1,
+            },
+        });
+
+        expect(config.level).toBe(1);
     });
 });
 

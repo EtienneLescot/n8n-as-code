@@ -120,13 +120,12 @@ export const NATIVE_MCP_LEVEL_NAMES: Record<number, string> = {
 };
 
 export function effectiveNativeMcpLevel(nativeMcp: IWorkspaceNativeMcpConfig | undefined, envOverride?: string): number {
-    if (envOverride !== undefined && envOverride.trim() !== '') {
+    if (envOverride !== undefined && /^\d+$/.test(envOverride.trim())) {
         const parsed = Number.parseInt(envOverride.trim(), 10);
-        if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 3) return parsed;
+        if (Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 3) return parsed;
     }
-    if (!nativeMcp) return 0;
-    if (nativeMcp.level !== undefined) return nativeMcp.level;
-    if (nativeMcp.enabled === false) return 0;
+    if (!nativeMcp || nativeMcp.enabled === false) return 0;
+    if (nativeMcp.level === 1 || nativeMcp.level === 2 || nativeMcp.level === 3) return nativeMcp.level;
     return nativeMcp.enabled || nativeMcp.url ? 3 : 0;
 }
 
