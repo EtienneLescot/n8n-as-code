@@ -49,8 +49,10 @@ function jsonResponse(payload: unknown, status = 200): Response {
 function jsonRpcMock(
     handler: (body: any) => unknown,
     calls: Array<{ method: string; params: any }> = [],
+    inits: Array<any> = [],
 ): typeof fetch {
     return (async (_input: any, init?: any) => {
+        inits.push(init);
         const body = JSON.parse(String(init?.body ?? '{}'));
         if (body.method) calls.push({ method: body.method, params: body.params });
         return jsonResponse({ jsonrpc: '2.0', id: body.id ?? 1, result: handler(body) });
@@ -89,6 +91,7 @@ describe('PreflightNodeValidator', () => {
 
     it('uses the instance validate_node_config verdict when the MCP endpoint exposes it', async () => {
         const calls: Array<{ method: string; params: any }> = [];
+        const inits: Array<any> = [];
         globalThis.fetch = jsonRpcMock((body) => {
             if (body.method === 'tools/list') {
                 return { tools: [{ name: 'validate_node_config' }] };
@@ -103,7 +106,7 @@ describe('PreflightNodeValidator', () => {
                 };
             }
             return {};
-        }, calls);
+        }, calls, inits);
 
         const validator = new PreflightNodeValidator({ endpoint: 'https://instance.local/mcp-server/http', token: 'x', technicalIndexPath: TECHNICAL_INDEX });
         const outcome = await validator.validateFile(makeWorkflowFile('wf', cleanWorkflow));
@@ -113,6 +116,12 @@ describe('PreflightNodeValidator', () => {
         expect(outcome.valid).toBe(false);
         expect(outcome.issues[0].errors[0].message).toContain('parameters.model.__rl');
         assertValidateNodeConfigCall(calls);
+        // Redirects must fail closed: no POST/DELETE may follow a 307/308 to
+        // another destination with the session identifier or payload.
+        expect(inits.length).toBeGreaterThan(0);
+        for (const init of inits) {
+            expect(init?.redirect).toBe('error');
+        }
     });
 
     it('validates against the bundled schema (default) when the MCP server lacks validate_node_config', async () => {
