@@ -95,35 +95,40 @@ export class SyncCommand extends BaseCommand {
             }
         }
 
-        // Pre-push node validation. A workflow whose nodes the instance itself
-        // (or the bundled schema, when no instance MCP endpoint is configured)
-        // rejects must never be deployed — n8n would store it, but it would be
-        // broken in the UI and fail at run time. Escalate to "push anyway" with
-        // N8NAC_PUSH_SKIP_VALIDATION=1.
+        // Pre-push node validation. The bundled schema (local, always available)
+        // rejects node configurations n8n itself refuses — and when the instance
+        // exposes its MCP server, the instance's own schema is consulted first and
+        // is authoritative. A workflow whose nodes the instance rejects must never
+        // be deployed — n8n would store it, but it would be broken in the UI and
+        // fail at run time. Escalate to "push anyway" with N8NAC_PUSH_SKIP_VALIDATION=1.
         if (absolutePath) {
             const outcome = await this.runPrePushValidation(absolutePath);
             if (outcome) {
-                if (outcome.source === 'server' || outcome.source === 'local') {
-                    if (!outcome.valid) {
-                        if (basename && workflowId) {
-                            await syncManager.recordWorkflowPushRejected(basename, workflowId, 'Pre-push node validation failed');
-                        }
-                        console.log(chalk.red(`\n❌ ${outcome.issues.length} node(s) would be rejected by n8n. Push aborted before any remote change.\n`));
-                        for (const issue of outcome.issues) {
-                            const nodeLabel = issue.name ? chalk.bold(`[${issue.name}]`) : '';
-                            console.log(chalk.red(`  • ${nodeLabel} ${chalk.dim(issue.type)}`));
-                            for (const err of issue.errors) {
-                                console.log(chalk.red(`      - ${err.message}`));
-                            }
-                        }
-                        if (outcome.skippedReason) {
-                            console.log(chalk.dim(`\n  (${outcome.skippedReason})`));
-                        }
-                        console.log(chalk.yellow('\n  Fix the reported node parameters, then push again.'));
-                        process.exit(1);
+                if (!outcome.valid) {
+                    if (basename && workflowId) {
+                        await syncManager.recordWorkflowPushRejected(basename, workflowId, 'Pre-push node validation failed');
                     }
-                } else {
-                    console.warn(chalk.yellow(`⚠  Pre-push node validation skipped: ${outcome.skippedReason || 'validation unavailable'}`));
+                    console.log(chalk.red(`\n❌ ${outcome.issues.length} node(s) would be rejected by n8n. Push aborted before any remote change.\n`));
+                    for (const issue of outcome.issues) {
+                        const nodeLabel = issue.name ? chalk.bold(`[${issue.name}]`) : '';
+                        console.log(chalk.red(`  • ${nodeLabel} ${chalk.dim(issue.type)}`));
+                        for (const err of issue.errors) {
+                            console.log(chalk.red(`      - ${err.message}`));
+                        }
+                    }
+                    if (outcome.serverUnavailableReason) {
+                        console.log(chalk.dim(`\n  (${outcome.serverUnavailableReason})`));
+                    }
+                    console.log(chalk.yellow('\n  Fix the reported node parameters, then push again.'));
+                    process.exit(1);
+                }
+                if (outcome.serverUnavailableReason) {
+                    // The workflow is valid against the bundled schema, but the
+                    // instance-side check that was attempted could not run. When the
+                    // user explicitly configured instance validation this is a real
+                    // signal; on the automatic probe it stays a quiet hint.
+                    const notice = `Instance node validation unavailable (${outcome.serverUnavailableReason}); validated against the bundled schema.`;
+                    console.warn(chalk.yellow(`⚠  ${notice}`));
                 }
             }
         }
@@ -314,16 +319,18 @@ export class SyncCommand extends BaseCommand {
     }
 
     /**
-     * Validate a local workflow file against the strongest schema available
-     * before anything is written to the instance:
-     *  - the instance's own native MCP `validate_node_config` when the active
-     *    environment has native MCP assist configured (or the
-     *    N8NAC_NATIVE_MCP_ENABLED flag is set), then
-     *  - the bundled technical node index otherwise.
+     * Validate a local workflow file before anything is written to the instance.
      *
-     * Returns null when validation is skipped (opt-out env var, no host, or the
-     * workflow file cannot be compiled locally — the push itself then reports
-     * the real compile error).
+     * Validation model — local by default, instance as the authoritative upgrade:
+     * the bundled node schema always runs first (no network required); when the
+     * target instance is known, its own MCP endpoint (`validate_node_config`) is
+     * additionally probed with the environment API key — which authenticates on
+     * self-hosted instances with the MCP server enabled. An explicitly configured
+     * native-MCP token is used when present (n8n Cloud).
+     *
+     * Returns null when validation is skipped (opt-out env var, or the workflow
+     * file cannot be compiled locally — the push itself then reports the real
+     * compile error).
      */
     private async runPrePushValidation(absolutePath: string): Promise<Awaited<ReturnType<PreflightNodeValidator['validateFile']>> | null> {
         if (/^(1|true|yes|on)$/i.test(process.env.N8NAC_PUSH_SKIP_VALIDATION || '')) {
@@ -332,17 +339,15 @@ export class SyncCommand extends BaseCommand {
 
         const environment = this.activeEnvironment;
         const host = environment?.host || this.config?.host;
-        if (!host) {
-            return null;
-        }
-
         const nativeMcp = environment?.nativeMcp;
         const flagEnabled = /^(1|true|yes|on)$/i.test(process.env.N8NAC_NATIVE_MCP_ENABLED || '');
-        const wantsServer = Boolean(nativeMcp?.url || nativeMcp?.enabled || flagEnabled);
 
         let endpoint: string | undefined;
         let token: string | undefined;
-        if (wantsServer) {
+        if (host) {
+            // Automatic probe by default: derived endpoint, environment API key.
+            // Explicit assist configuration (nativeMcp url/enabled or the env flag)
+            // only pins the endpoint/token choice and the timeout.
             endpoint = nativeMcp?.url || `${host.replace(/\/+$/, '')}/mcp-server/http`;
             try {
                 token = this.configService.getNativeMcpToken(environment?.environmentId) || environment?.apiKey;
@@ -352,7 +357,11 @@ export class SyncCommand extends BaseCommand {
         }
 
         const validator = endpoint
-            ? new PreflightNodeValidator({ endpoint, token })
+            ? new PreflightNodeValidator({
+                endpoint,
+                token,
+                timeoutMs: nativeMcp?.timeoutMs ?? (nativeMcp?.enabled || flagEnabled ? 10000 : 3000),
+            })
             : new PreflightNodeValidator();
         try {
             return await validator.validateFile(absolutePath);

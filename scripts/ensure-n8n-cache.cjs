@@ -121,10 +121,48 @@ function downloadJson(url) {
     });
 }
 
+// n8n ships several release lines at once: `latest`/`stable` (the current
+// stable release — what GitHub `releases/latest` reports) and `next`/`beta`
+// (published to npm before promotion, and what n8n Cloud typically runs).
+// The ontology can only mirror ONE line, so the source is a pipeline input:
+//   N8N_VERSION=n8n@2.38.3     explicit version (same as N8N_STABLE_TAG)
+//   N8N_VERSION=next           npm dist-tag, resolved to its current version
+// The default stays GitHub `releases/latest` (stable).
+const NPM_DIST_TAGS = new Set(['latest', 'next', 'beta', 'rc', 'stable']);
+
+async function resolveSourceTag() {
+    const raw = (process.env.N8N_VERSION || process.env.N8N_STABLE_TAG || '').trim();
+    if (!raw) {
+        return null;
+    }
+
+    const candidate = normalizeRef(raw);
+    if (!candidate) {
+        return null;
+    }
+
+    if (NPM_DIST_TAGS.has(candidate)) {
+        try {
+            const dist = await downloadJson(`https://registry.npmjs.org/n8n/${encodeURIComponent(candidate)}`);
+            const version = dist?.version;
+            if (version) {
+                const tag = normalizeRef(version);
+                console.log(`🎯 N8N_VERSION resolved npm dist-tag "${candidate}" -> ${tag}`);
+                return { tag, source: `npm-dist-tag:${candidate}` };
+            }
+        } catch (error) {
+            console.warn(`⚠️  Failed to resolve npm dist-tag "${candidate}": ${error.message}`);
+        }
+        throw new Error(`Could not resolve npm dist-tag "${candidate}" for n8n.`);
+    }
+
+    return { tag: candidate, source: 'env' };
+}
+
 async function resolveStableTag() {
-    const overrideTag = normalizeRef(process.env.N8N_VERSION || process.env.N8N_STABLE_TAG);
-    if (overrideTag) {
-        return { tag: overrideTag, source: 'env' };
+    const override = await resolveSourceTag();
+    if (override) {
+        return override;
     }
 
     try {
