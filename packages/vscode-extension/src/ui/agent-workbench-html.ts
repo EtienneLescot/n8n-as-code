@@ -3084,8 +3084,9 @@ export function buildAgentWorkbenchHtml(input: AgentWorkbenchHtmlInput): string 
                     startedAt: event.startedAt,
                     endedAt: event.endedAt,
                 };
-                if (idx >= 0) entries[idx] = opEntry;
-                else insertBeforeFinalAssistant(entries, opEntry);
+                const isStaleRunning = event.status === 'running' && existing && existing.status && existing.status !== 'running';
+                if (!isStaleRunning && idx >= 0) entries[idx] = opEntry;
+                else if (!isStaleRunning) insertBeforeFinalAssistant(entries, opEntry);
                 if (opEntry.status === 'running') deferRender = true;
             } else if (event.type === 'progress') {
                 const idx = findMatchingPendingOperationIndex(entries, '', event.title, event.phase || 'phase');

@@ -741,3 +741,20 @@ test('Agent Workbench HTML: running operations defer full feed rendering', () =>
     assert.ok(html.includes("if (opEntry.status === 'running') deferRender = true;"), 'Running operation updates must defer full feed rendering');
     assert.ok(html.includes("if (progressEntry.status === 'running') deferRender = true;"), 'Running progress updates must defer full feed rendering');
 });
+
+test('Agent runtime: stale running events cannot reopen terminal operations', () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const controller = fs.readFileSync(path.join(__dirname, '../../src/services/agent-runtime-controller.ts'), 'utf8');
+    const { buildAgentWorkbenchHtml } = require('../../src/ui/agent-workbench-html.js');
+    const html: string = buildAgentWorkbenchHtml({
+        workflowId: 'wf-1',
+        workflowName: 'Workflow 1',
+        workflowUrl: 'http://localhost:5678/workflow/wf-1',
+        providerModelLabel: 'openai / gpt-5.4',
+    });
+
+    assert.ok(controller.includes('if (signal.aborted) break;'), 'Aborted runs should drop buffered operations instead of emitting them');
+    assert.ok(controller.includes("existingEntry.status !== 'running'"), 'Host entries must reject running updates for terminal operations');
+    assert.ok(html.includes('isStaleRunning'), 'Webview must reject running updates for terminal operations');
+});
