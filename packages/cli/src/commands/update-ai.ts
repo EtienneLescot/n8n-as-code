@@ -10,7 +10,7 @@ import {
     WorkspaceSetupService,
 } from '../core/index.js';
 import type { AiContextGenerator as AiContextGeneratorInstance } from '@n8n-as-code/skills';
-import { ConfigService } from '../services/config-service.js';
+import { ConfigService, effectiveNativeMcpLevel } from '../services/config-service.js';
 import dotenv from 'dotenv';
 
 const N8NAC_DEV_CONFIG_FILENAMES = [
@@ -75,6 +75,25 @@ function inferLocalDevCliCommand(projectRoot: string): string | undefined {
         return undefined;
     }
     return `node ${quoteShellArg(entrypoint)}`;
+}
+
+/**
+ * Resolve the effective native MCP usage level of the active workspace
+ * environment for generated AI context. Never throws — update-ai must not
+ * fail when no environment is pinned yet.
+ */
+function resolveActiveNativeMcpLevel(projectRoot: string): { level: number; environmentName?: string } | undefined {
+    try {
+        const configService = new ConfigService(projectRoot);
+        const requested = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
+        const resolved = configService.resolveEnvironment(requested);
+        return {
+            level: effectiveNativeMcpLevel(resolved.environment.nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL),
+            environmentName: resolved.environmentName,
+        };
+    } catch {
+        return undefined;
+    }
 }
 
 function inferLocalDevManagerCommand(): string | undefined {
@@ -183,10 +202,12 @@ export class UpdateAiCommand {
             const distTag = typeof options.cliVersion === 'string' && options.cliVersion.trim()
                 ? options.cliVersion.trim()
                 : getDistTag();
+            const nativeMcp = resolveActiveNativeMcpLevel(projectRoot);
             await aiContextGenerator.generate(projectRoot, version, distTag, {
                 cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
+                nativeMcp,
             } as Parameters<AiContextGeneratorInstance['generate']>[3] & { managerCommandOverride?: string });
             if (!silent) console.log(chalk.green('   ✅ AI context files created.'));
 

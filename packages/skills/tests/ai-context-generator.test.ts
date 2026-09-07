@@ -87,8 +87,39 @@ describe('AiContextGenerator', () => {
             expect(run2.match(/<!-- n8n-as-code-start -->/g)?.length).toBe(1);
         });
 
-        test('does not duplicate effective config values into AGENTS.md', async () => {
+        test('omits the native MCP level block when no environment is resolved', async () => {
             await generator.generate(tempDir, '1.0.0');
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            const architectAgent = fs.readFileSync(path.join(tempDir, '.github/agents/n8n-architect.agent.md'), 'utf-8');
+            const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
+
+            expect(agentsContent).not.toContain('## Native MCP Usage Level');
+            expect(architectAgent).not.toContain('## Native MCP Usage Level');
+            expect(architectSkill).not.toContain('## Native MCP Usage Level');
+        });
+
+        test('embeds the resolved native MCP level and discourages level 0', async () => {
+            await generator.generate(tempDir, '1.0.0', undefined, {
+                nativeMcp: { level: 0, environmentName: 'bench' },
+            });
+
+            const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
+            const architectAgent = fs.readFileSync(path.join(tempDir, '.github/agents/n8n-architect.agent.md'), 'utf-8');
+            const architectSkill = fs.readFileSync(path.join(tempDir, '.agents/skills/n8n-architect/SKILL.md'), 'utf-8');
+
+            for (const content of [agentsContent, architectAgent, architectSkill]) {
+                expect(content).toContain('## Native MCP Usage Level');
+                expect(content).toContain('level 0 — off (bundled ontology only)');
+                expect(content).toContain('level 2 (live validation)');
+                expect(content).toContain('DISCOURAGED except offline');
+                expect(content).toContain('n8nac native-mcp configure --level 1');
+                expect(content).toContain('You must never change the level yourself');
+            }
+            expect(agentsContent).toContain('environment "bench"');
+        });
+
+        test('does not duplicate effective config values into AGENTS.md', async () => {            await generator.generate(tempDir, '1.0.0');
 
             const agentsContent = fs.readFileSync(path.join(tempDir, 'AGENTS.md'), 'utf-8');
             expect(agentsContent).not.toContain('Effective instance');
