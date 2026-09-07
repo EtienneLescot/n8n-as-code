@@ -12,7 +12,7 @@
       "publishTarget": "npm",
       "tagPrefix": "@n8n-as-code/transformer@",
       "internalDependencies": [],
-      "currentVersion": "2.0.1-rc.3",
+      "currentVersion": "2.0.1-rc.4",
       "latestStableTag": "@n8n-as-code/transformer@v2.0.0",
       "latestStableVersion": "2.0.0",
       "bump": "patch",
@@ -71,7 +71,7 @@
       "internalDependencies": [
         "@n8n-as-code/transformer"
       ],
-      "currentVersion": "2.0.1-rc.3",
+      "currentVersion": "2.0.1-rc.4",
       "latestStableTag": "@n8n-as-code/workflow-core@v2.0.0",
       "latestStableVersion": "2.0.0",
       "bump": "patch",
@@ -95,7 +95,7 @@
       "internalDependencies": [
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.0.5-rc.3",
+      "currentVersion": "2.0.5-rc.4",
       "latestStableTag": "@n8n-as-code/manager-adapter@v2.0.4",
       "latestStableVersion": "2.0.4",
       "bump": "patch",
@@ -120,7 +120,7 @@
         "@n8n-as-code/telemetry",
         "@n8n-as-code/transformer"
       ],
-      "currentVersion": "2.4.0-rc.3",
+      "currentVersion": "2.4.0-rc.4",
       "latestStableTag": "@n8n-as-code/skills@v2.3.2",
       "latestStableVersion": "2.3.2",
       "bump": "minor",
@@ -305,7 +305,7 @@
         "@n8n-as-code/transformer",
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.6.0-rc.3",
+      "currentVersion": "2.6.0-rc.4",
       "latestStableTag": "n8nac@v2.5.0",
       "latestStableVersion": "2.5.0",
       "bump": "minor",
@@ -436,7 +436,7 @@
         "@n8n-as-code/telemetry",
         "n8nac"
       ],
-      "currentVersion": "2.1.3-rc.3",
+      "currentVersion": "2.1.3-rc.4",
       "latestStableTag": "@n8n-as-code/mcp@v2.1.2",
       "latestStableVersion": "2.1.2",
       "bump": "minor",
@@ -480,7 +480,7 @@
         "@n8n-as-code/workflow-core",
         "n8nac"
       ],
-      "currentVersion": "2.42.0-rc.3",
+      "currentVersion": "2.42.0-rc.4",
       "latestStableTag": "n8n-as-code@v2.40.0",
       "latestStableVersion": "2.40.0",
       "bump": "minor",
@@ -551,7 +551,7 @@
         "@n8n-as-code/telemetry",
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.3.0-rc.3",
+      "currentVersion": "2.3.0-rc.4",
       "latestStableTag": "@n8n-as-code/n8nac@v2.2.1",
       "latestStableVersion": "2.2.1",
       "bump": "minor",
