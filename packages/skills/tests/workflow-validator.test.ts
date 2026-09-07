@@ -1035,3 +1035,110 @@ describe('WorkflowValidator - fallback model', () => {
         expect(result.errors.some(e => e.message.includes('Malformed ai_languageModel connection on node "Model"'))).toBe(true);
     });
 });
+
+describe("WorkflowValidator - server-equivalent presence gating and resource locators", () => {
+    const indexPath = path.resolve(_dirname, "fixtures/gating-nodes.json");
+
+    const gateValidator = () => new WorkflowValidator(indexPath);
+    const node = (type: string, parameters: Record<string, unknown>, typeVersion = 1) => ({
+        id: "n1",
+        name: "Test",
+        type,
+        typeVersion,
+        position: [0, 0],
+        parameters,
+    });
+
+    it("rejects a param whose schema variants are all hidden (displayOptions defaults-aware)", async () => {
+        // text is only allowed when promptType="define" or "auto"; fromInput hides every variant.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { promptType: "fromInput", text: "hello" }, 3.1)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.text"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when one of: (promptType="auto") or (promptType="define")');
+    });
+
+    it("resolves condition defaults so an omitted promptType is evaluated as auto (server semantics)", async () => {
+        // promptType omitted -> schema default "auto" -> the auto text variant is shown.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { text: "={{ $json.chatInput }}" }, 3.1)],
+            connections: {},
+        });
+        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+    });
+
+    it("accepts text when the displayed variant condition is satisfied", async () => {
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { promptType: "define", text: "hi" }, 3.1)],
+            connections: {},
+        });
+        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+    });
+
+    it("rejects sessionKey when sessionIdType default (fromInput) hides every variant", async () => {
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoMemory", { sessionKey: "k", contextWindowLength: 5 }, 1.4)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.sessionKey"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('This field is only allowed when: sessionIdType="customKey"');
+    });
+
+    it("accepts sessionKey when sessionIdType=customKey", async () => {
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoMemory", { sessionIdType: "customKey", sessionKey: "k" }, 1.4)],
+            connections: {},
+        });
+        expect(result.errors.filter((e) => e.message.includes("parameters.sessionKey"))).toHaveLength(0);
+    });
+
+    it("rejects params hidden behind a /-prefixed root boolean condition", async () => {
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { systemMessage: "sys" }, 3.1)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.message.includes("parameters.systemMessage") && e.message.includes("/useSystemMessage"))).toBe(true);
+    });
+
+    it("reports multi-variant gating like the server (one-of phrasing)", async () => {
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoHtml", { operation: "generateHtmlTemplate", dataPropertyName: "data" }, 1.2)],
+            connections: {},
+        });
+        expect(result.valid).toBe(false);
+        const err = result.errors.find((e) => e.message.includes("parameters.dataPropertyName"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('when one of: (operation="extractHtmlContent", sourceData="binary") or (operation="extractHtmlContent", sourceData="json")');
+    });
+
+    it("accepts an expression-valued param when its variant is displayed", async () => {
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoHtml", { operation: "extractHtmlContent", sourceData: "json", dataPropertyName: "={{ $json.d }}" }, 1.2)],
+            connections: {},
+        });
+        expect(result.errors.filter((e) => e.message.includes("dataPropertyName"))).toHaveLength(0);
+    });
+
+    it("requires __rl: true on explicitly-set resourceLocator objects", async () => {
+        const bad = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlc", { model: { mode: "list", value: "gpt-5-mini" } }, 1)],
+            connections: {},
+        });
+        expect(bad.valid).toBe(false);
+        const err = bad.errors.find((e) => e.message.includes("__rl"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('Validation failed: "parameters.model.__rl" must be "true".');
+
+        const ok = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlc", { model: { __rl: true, mode: "list", value: "gpt-5-mini" } }, 1)],
+            connections: {},
+        });
+        expect(ok.errors.filter((e) => e.message.includes("__rl"))).toHaveLength(0);
+    });
+});

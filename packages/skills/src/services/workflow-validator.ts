@@ -253,17 +253,80 @@ export class WorkflowValidator {
     return typeof value === 'string' && value.includes('{{');
   }
 
-  private getConditionParamValue(
+  private hasOwnProperty(obj: any, key: string): boolean {
+    return obj !== null && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  private nodeVersionOf(node?: any): number {
+    const rawVersion = node?.typeVersion ?? node?.version ?? 1;
+    return typeof rawVersion === 'number' ? rawVersion : (Number(rawVersion) || 1);
+  }
+
+  /**
+   * Whether a schema property entry applies to the node's typeVersion.
+   * The technical index stores one property entry per (version, condition)
+   * combination, so entries whose `@version` condition excludes the current
+   * typeVersion must not influence validation of this node.
+   */
+  private isVersionRelevant(prop: any, node?: any): boolean {
+    const version = this.nodeVersionOf(node);
+    const show = prop?.displayOptions?.show;
+    if (show && this.hasOwnProperty(show, '@version')) {
+      return this.matchesVersionCondition(show['@version'], version);
+    }
+    const hide = prop?.displayOptions?.hide;
+    if (hide && this.hasOwnProperty(hide, '@version')) {
+      return !this.matchesVersionCondition(hide['@version'], version);
+    }
+    return true;
+  }
+
+  /**
+   * Resolve the effective value of a display-condition parameter the way the
+   * n8n server does: the explicitly set parameter wins, otherwise the schema
+   * default of the version-appropriate property variant applies.
+   *
+   * `/`-prefixed condition names always reference the node's root parameters;
+   * plain names reference the current parameter level first (nested fixed
+   * collection items), then the root level — mirroring n8n's own resolution.
+   */
+  private effectiveConditionValue(
     condParamName: string,
     nodeParams: Record<string, any>,
-    rootParams: Record<string, any>
+    rootParams: Record<string, any>,
+    levelProps: any[] | undefined,
+    rootProps: any[] | undefined,
+    node: any,
+    depth = 0
   ): any {
-    if (condParamName.startsWith('/')) {
-      return rootParams[condParamName.slice(1)];
+    const isRoot = condParamName.startsWith('/');
+    const name = isRoot ? condParamName.slice(1) : condParamName;
+    const levelParams = isRoot ? rootParams : nodeParams;
+
+    if (this.hasOwnProperty(levelParams, name)) {
+      return levelParams[name];
     }
-    return Object.prototype.hasOwnProperty.call(nodeParams, condParamName)
-      ? nodeParams[condParamName]
-      : rootParams[condParamName];
+    if (depth > 3) {
+      return undefined;
+    }
+
+    const propSource = isRoot ? rootProps || levelProps : levelProps;
+    const candidates = (propSource || []).filter(
+      (p: any) => p?.name === name && this.isVersionRelevant(p, node)
+    );
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    // Prefer the variant whose non-@version conditions already hold for the
+    // provided parameters (e.g. promptType has separate "auto"/"define"
+    // variants with different defaults). Without any satisfied variant, fall
+    // back to the first version-relevant entry.
+    const satisfied = candidates.find((p: any) =>
+      this.isPropertyDisplayed(p, levelParams, levelParams, node, propSource, propSource, depth + 1)
+    );
+    const chosen = satisfied ?? candidates[0];
+    return chosen?.default;
   }
 
   private matchesVersionCondition(condition: any, nodeVersion: number): boolean {
@@ -298,16 +361,22 @@ export class WorkflowValidator {
 
   /**
    * Check whether a schema property's displayOptions conditions are satisfied
-   * by the current parameters. If no displayOptions defined -> always shown.
+   * by the effective parameters (explicit values first, schema defaults for
+   * missing condition parameters). If no displayOptions defined -> always shown.
+   *
+   * `levelProps` / `rootProps` carry the property lists whose defaults may
+   * satisfy condition parameters at the current level / at the node root.
    */
   private isPropertyDisplayed(
     prop: any,
     nodeParams: Record<string, any>,
     rootParams: Record<string, any> = nodeParams,
-    node?: any
+    node?: any,
+    levelProps?: any[],
+    rootProps?: any[],
+    depth = 0
   ): boolean {
-    const rawVersion = node?.typeVersion ?? node?.version ?? 1;
-    const nodeVersion = typeof rawVersion === 'number' ? rawVersion : (Number(rawVersion) || 1);
+    const nodeVersion = this.nodeVersionOf(node);
 
     const hide = prop.displayOptions?.hide;
     if (hide && typeof hide === 'object') {
@@ -317,8 +386,7 @@ export class WorkflowValidator {
           continue;
         }
         if (!Array.isArray(hiddenValues)) continue;
-        const actualValue = this.getConditionParamValue(condParamName, nodeParams, rootParams);
-        if (this.isExpressionValue(actualValue)) continue;
+        const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
         if (hiddenValues.includes(actualValue)) return false;
       }
     }
@@ -332,9 +400,7 @@ export class WorkflowValidator {
         continue;
       }
       if (!Array.isArray(allowedValues)) continue;
-      const actualValue = this.getConditionParamValue(condParamName, nodeParams, rootParams);
-      // Skip expression values — can't evaluate at static validation time
-      if (this.isExpressionValue(actualValue)) continue;
+      const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
       if (!allowedValues.includes(actualValue)) return false;
     }
     return true;
@@ -350,7 +416,7 @@ export class WorkflowValidator {
     warnings: ValidationWarning[]
   ): void {
     const schemaProps = nodeSchema.schema?.properties || nodeSchema.properties || [];
-    this.validateParameterSet(node, schemaProps, node.parameters, node.parameters, `nodes[${node.name}].parameters`, errors, warnings, true);
+    this.validateParameterSet(node, schemaProps, node.parameters, node.parameters, `nodes[${node.name}].parameters`, errors, warnings, true, schemaProps);
 
     // Cross-check: when both 'resource' and 'operation' are set, verify the operation
     // is valid for the specific resource (some operations only exist for certain resources)
@@ -365,7 +431,7 @@ export class WorkflowValidator {
         (p: any) => p.name === 'operation' && (p.type === 'options' || p.type === 'multiOptions') &&
           Array.isArray(p.displayOptions?.show?.resource) &&
           p.displayOptions.show.resource.includes(resourceValue) &&
-          this.isPropertyDisplayed(p, node.parameters, node.parameters, node)
+          this.isPropertyDisplayed(p, node.parameters, node.parameters, node, schemaProps, schemaProps)
       );
       if (scopedOpProps.length > 0) {
         const scopedValues = new Set<string | number>(
@@ -386,6 +452,123 @@ export class WorkflowValidator {
     }
   }
 
+  private literalConditionText(value: any): string {
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (value === null) return 'null';
+    return String(value);
+  }
+
+  private variantConditionText(prop: any): string {
+    const conds: string[] = [];
+    const render = (map: any, negated: boolean) => {
+      for (const [key, values] of Object.entries(map ?? {})) {
+        if (key === '@version') continue;
+        if (!Array.isArray(values)) continue;
+        for (const value of values) {
+          conds.push(negated
+            ? `${key}!==${this.literalConditionText(value)}`
+            : `${key}=${this.literalConditionText(value)}`);
+        }
+      }
+    };
+    render(prop.displayOptions?.show, false);
+    render(prop.displayOptions?.hide, true);
+    return conds.join(', ');
+  }
+
+  private parameterDottedPath(path: string, paramKey: string): string {
+    // Convert the internal `nodes[<name>].parameters...` path into the server-style
+    // `parameters...` path used in validation messages.
+    const dotted = path.replace(/^nodes\[[^\]]*\]\.parameters/, 'parameters');
+    return `${dotted}.${paramKey}`;
+  }
+
+  private hiddenParametersMessage(dottedPath: string, failingVariants: any[]): string {
+    const label = `Field "${dottedPath}": This field is only allowed`;
+    const descriptions = failingVariants.map((v) => this.variantConditionText(v)).filter(Boolean);
+    if (descriptions.length === 0) {
+      return `${label} under the current parameter values.`;
+    }
+    if (descriptions.length === 1) {
+      return `${label} when: ${descriptions[0]}`;
+    }
+    return `${label} when one of: ${descriptions.map((d) => `(${d})`).join(' or ')}`;
+  }
+
+  /**
+   * Server-equivalent presence gating: n8n's `validate_node_config` rejects any
+   * parameter that is explicitly present while every schema variant of that
+   * parameter is hidden by the current display conditions (evaluated against
+   * effective values, i.e. explicit parameters first, schema defaults second).
+   */
+  private validateNoHiddenParameters(
+    node: any,
+    schemaProps: any[],
+    params: Record<string, any>,
+    rootParams: Record<string, any>,
+    path: string,
+    rootSchemaProps: any[],
+    errors: ValidationError[]
+  ): void {
+    for (const paramKey of Object.keys(params)) {
+      const variants = schemaProps.filter((p: any) => p.name === paramKey);
+      if (variants.length === 0) continue; // unknown parameters are reported as warnings
+
+      const relevant = variants.filter((p: any) => this.isVersionRelevant(p, node));
+      if (relevant.length === 0) continue; // parameter belongs to another typeVersion
+
+      const shown = relevant.filter((p: any) =>
+        this.isPropertyDisplayed(p, params, rootParams, node, schemaProps, rootSchemaProps)
+      );
+      if (shown.length > 0) continue;
+
+      errors.push({
+        type: 'error',
+        nodeId: node.id,
+        nodeName: node.name,
+        message: this.hiddenParametersMessage(this.parameterDottedPath(path, paramKey), relevant),
+        path: `${path}.${paramKey}`,
+      });
+    }
+  }
+
+  /**
+   * Resource-locator shape invariant: an explicitly-set object value for a
+   * `resourceLocator` parameter must carry `__rl: true` plus `mode`/`value`.
+   * The n8n server rejects anything else ("parameters.<x>.__rl must be true").
+   */
+  private validateResourceLocatorShapes(
+    node: any,
+    schemaProps: any[],
+    params: Record<string, any>,
+    rootParams: Record<string, any>,
+    path: string,
+    rootSchemaProps: any[],
+    errors: ValidationError[]
+  ): void {
+    for (const paramKey of Object.keys(params)) {
+      const value = params[paramKey];
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      if (!this.hasOwnProperty(value, 'mode') && !this.hasOwnProperty(value, 'value')) continue;
+
+      const relevant = schemaProps.filter(
+        (p: any) => p.name === paramKey && p.type === 'resourceLocator' && this.isVersionRelevant(p, node)
+      );
+      if (relevant.length === 0) continue;
+
+      if (value.__rl !== true) {
+        errors.push({
+          type: 'error',
+          nodeId: node.id,
+          nodeName: node.name,
+          message: `Validation failed: "parameters.${paramKey}.__rl" must be "true". Resource-locator parameters must be objects shaped like {"__rl": true, "mode": "...", "value": "..."}.`,
+          path: `${path}.${paramKey}.__rl`,
+        });
+      }
+    }
+  }
+
   private validateParameterSet(
     node: any,
     schemaProps: any[],
@@ -394,12 +577,19 @@ export class WorkflowValidator {
     path: string,
     errors: ValidationError[],
     warnings: ValidationWarning[],
-    warnUnknownParameters: boolean
+    warnUnknownParameters: boolean,
+    rootSchemaProps: any[] = schemaProps
   ): void {
-    // Only consider props whose display conditions are satisfied by the current params
-    const displayedProps = schemaProps.filter((p: any) => this.isPropertyDisplayed(p, params, rootParams, node));
+    // Only consider props whose display conditions are satisfied by the effective
+    // params (explicit values first, schema defaults for missing condition params)
+    const displayedProps = schemaProps.filter((p: any) => this.isPropertyDisplayed(p, params, rootParams, node, schemaProps, rootSchemaProps));
     const hasUsableDefault = (p: any): boolean => p.default !== undefined && p.default !== null && p.default !== '';
     const requiredProps = displayedProps.filter((p: any) => p.required === true && !hasUsableDefault(p));
+
+    // Server-equivalent presence gating: explicitly-set parameters that every
+    // schema variant hides are rejected by validate_node_config.
+    this.validateNoHiddenParameters(node, schemaProps, params, rootParams, path, rootSchemaProps, errors);
+    this.validateResourceLocatorShapes(node, schemaProps, params, rootParams, path, rootSchemaProps, errors);
 
     // Check required parameters
     for (const prop of requiredProps) {
@@ -482,7 +672,7 @@ export class WorkflowValidator {
                 .filter((p: any) => p.name === 'operation' && (p.type === 'options' || p.type === 'multiOptions') &&
                   Array.isArray(p.displayOptions?.show?.resource) &&
                   p.displayOptions.show.resource.includes(resourceValue) &&
-                  this.isPropertyDisplayed(p, rootParams, rootParams, node))
+                  this.isPropertyDisplayed(p, rootParams, rootParams, node, schemaProps, rootSchemaProps))
                 .flatMap((p: any) => p.options?.map((o: any) => o.value) ?? []);
               if (scopedOps.length > 0) {
                 hint = ` For resource "${resourceValue}", valid operations are: [${scopedOps.join(', ')}].`;
@@ -529,7 +719,8 @@ export class WorkflowValidator {
               `${path}.${prop.name}.${option.name}[${index}]`,
               errors,
               warnings,
-              false
+              false,
+              rootSchemaProps
             );
           });
         } else if (optionValue && typeof optionValue === 'object') {
@@ -541,7 +732,8 @@ export class WorkflowValidator {
             `${path}.${prop.name}.${option.name}`,
             errors,
             warnings,
-            false
+            false,
+            rootSchemaProps
           );
         }
       }
