@@ -1142,3 +1142,47 @@ describe("WorkflowValidator - server-equivalent presence gating and resource loc
         expect(ok.errors.filter((e) => e.message.includes("__rl"))).toHaveLength(0);
     });
 });
+
+describe("WorkflowValidator - expression conditions and strict resource-locator shapes", () => {
+    const indexPath = path.resolve(_dirname, "fixtures/gating-nodes.json");
+    const gateValidator = () => new WorkflowValidator(indexPath);
+    const node = (type: string, parameters: Record<string, unknown>, typeVersion = 1) => ({
+        id: "n1",
+        name: "Test",
+        type,
+        typeVersion,
+        position: [0, 0],
+        parameters,
+    });
+
+    it("does not treat a property as hidden when its show condition is an expression", async () => {
+        // promptType is an expression: it may resolve to "define" at run time,
+        // so the text parameter must not be flagged as hidden.
+        const result = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoAgent", { promptType: "={{ $json.promptType }}", text: "hi" }, 3.1)],
+            connections: {},
+        });
+        expect(result.errors.filter((e) => e.message.includes("parameters.text"))).toHaveLength(0);
+    });
+
+    it("requires __rl: true on every object value of a resource-locator parameter", async () => {
+        // Object without mode/value keys but __rl missing/false must still be rejected.
+        const bad = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlc", { model: { __rl: false, cachedResultName: "x" } }, 1)],
+            connections: {},
+        });
+        expect(bad.valid).toBe(false);
+        const err = bad.errors.find((e) => e.message.includes("__rl"));
+        expect(err).toBeDefined();
+        expect(err!.message).toContain('Validation failed: "parameters.model.__rl" must be "true".');
+    });
+
+    it("requires mode and value on a __rl:true resource-locator object", async () => {
+        const bad = await gateValidator().validateWorkflow({
+            nodes: [node("n8n-nodes-test.demoRlc", { model: { __rl: true } }, 1)],
+            connections: {},
+        });
+        expect(bad.valid).toBe(false);
+        expect(bad.errors.some((e) => e.message.includes("must be an object shaped like"))).toBe(true);
+    });
+});

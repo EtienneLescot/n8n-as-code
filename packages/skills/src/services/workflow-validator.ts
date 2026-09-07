@@ -401,6 +401,9 @@ export class WorkflowValidator {
       }
       if (!Array.isArray(allowedValues)) continue;
       const actualValue = this.effectiveConditionValue(condParamName, nodeParams, rootParams, levelProps, rootProps, node, depth);
+      // An expression cannot be resolved statically: never treat the property as
+      // hidden on its account (it may satisfy the condition at run time).
+      if (this.isExpressionValue(actualValue)) continue;
       if (!allowedValues.includes(actualValue)) return false;
     }
     return true;
@@ -534,9 +537,11 @@ export class WorkflowValidator {
   }
 
   /**
-   * Resource-locator shape invariant: an explicitly-set object value for a
-   * `resourceLocator` parameter must carry `__rl: true` plus `mode`/`value`.
-   * The n8n server rejects anything else ("parameters.<x>.__rl must be true").
+   * Resource-locator shape invariant: every explicitly-set OBJECT value of a
+   * `resourceLocator` parameter must carry `__rl: true` plus `mode`/`value` —
+   * the shape the n8n editor writes and the server's validator requires
+   * ("parameters.<x>.__rl" must be "true"). Plain strings are left alone
+   * (expressions), and non-object values cannot be valid locator payloads.
    */
   private validateResourceLocatorShapes(
     node: any,
@@ -549,21 +554,27 @@ export class WorkflowValidator {
   ): void {
     for (const paramKey of Object.keys(params)) {
       const value = params[paramKey];
-      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-      if (!this.hasOwnProperty(value, 'mode') && !this.hasOwnProperty(value, 'value')) continue;
 
       const relevant = schemaProps.filter(
         (p: any) => p.name === paramKey && p.type === 'resourceLocator' && this.isVersionRelevant(p, node)
       );
       if (relevant.length === 0) continue;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
 
-      if (value.__rl !== true) {
+      const validShape = value.__rl === true
+        && typeof value.mode === 'string' && value.mode.length > 0
+        && this.hasOwnProperty(value, 'value');
+
+      if (!validShape) {
+        const issue = value.__rl !== true
+          ? `Validation failed: "parameters.${paramKey}.__rl" must be "true".`
+          : `Validation failed: "parameters.${paramKey}" must be an object shaped like {"__rl": true, "mode": "...", "value": "..."}.`;
         errors.push({
           type: 'error',
           nodeId: node.id,
           nodeName: node.name,
-          message: `Validation failed: "parameters.${paramKey}.__rl" must be "true". Resource-locator parameters must be objects shaped like {"__rl": true, "mode": "...", "value": "..."}.`,
-          path: `${path}.${paramKey}.__rl`,
+          message: issue,
+          path: `${path}.${paramKey}`,
         });
       }
     }
