@@ -26,7 +26,8 @@
             "name": "text",
             "type": "string",
             "default": "={{ $json.chatInput }}",
-            "displayOptions": { "show": { "promptType": ["auto"] } }
+            "displayOptions": { "show": { "promptType": ["auto"] } },
+            "disabledOptions": { "show": { "promptType": ["auto"] } }
           },
           {
             "displayName": "Text (define)",
@@ -40,6 +41,19 @@
             "name": "systemMessage",
             "type": "string",
             "displayOptions": { "show": { "/useSystemMessage": [true] } }
+          },
+          {
+            "displayName": "Responses API Enabled",
+            "name": "responsesApiEnabled",
+            "type": "boolean",
+            "default": true
+          },
+          {
+            "displayName": "Built-in Tools",
+            "name": "builtInTools",
+            "type": "collection",
+            "default": {},
+            "displayOptions": { "show": { "/responsesApiEnabled": [true] } }
           }
         ]
       }
@@ -61,6 +75,14 @@
               { "name": "Define below", "value": "customKey" }
             ],
             "default": "fromInput"
+          },
+          {
+            "displayName": "Session Key (from input)",
+            "name": "sessionKey",
+            "type": "string",
+            "default": "={{ $json.sessionId }}",
+            "displayOptions": { "show": { "sessionIdType": ["fromInput"] } },
+            "disabledOptions": { "show": { "sessionIdType": ["fromInput"] } }
           },
           {
             "displayName": "Session Key (custom)",
@@ -137,6 +159,29 @@
             "name": "model",
             "type": "resourceLocator",
             "default": { "mode": "list", "value": "gpt-5-mini" }
+          }
+        ]
+      }
+    },
+    "demoRlcCond": {
+      "name": "demoRlcCond",
+      "type": "n8n-nodes-test.demoRlcCond",
+      "displayName": "Demo RLC Condition",
+      "description": "Test resource locator unwrapping in display conditions",
+      "version": [1],
+      "schema": {
+        "properties": [
+          {
+            "displayName": "Calendar",
+            "name": "calendar",
+            "type": "resourceLocator",
+            "default": { "mode": "list", "value": "" }
+          },
+          {
+            "displayName": "Event Title",
+            "name": "eventTitle",
+            "type": "string",
+            "displayOptions": { "show": { "calendar": ["primary"] } }
           }
         ]
       }
