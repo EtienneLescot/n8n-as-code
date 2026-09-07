@@ -8,23 +8,43 @@ export interface PreflightNodeIssue {
 }
 
 export interface PreflightValidationOutcome {
-    /** Which source produced the verdict: the instance MCP server, or the local schema. */
-    source: 'server' | 'local' | 'unavailable';
+    /**
+     * Which schema produced the verdict.
+     *  - `server`: the instance's own `validate_node_config` (authoritative for the
+     *    instance, immune to bundled-schema drift);
+     *  - `local`: the bundled technical node index — the DEFAULT validation, which
+     *    runs whenever no instance MCP endpoint is reachable.
+     */
+    source: 'server' | 'local';
     valid: boolean;
     issues: PreflightNodeIssue[];
-    /** Local-only details when the server path was unavailable (reachability, tool missing). */
-    skippedReason?: string;
+    /** True when an instance MCP endpoint was available and attempted. */
+    serverAttempted: boolean;
+    /** Set when the server attempt could not run; the outcome then reflects the local (default) validation. */
+    serverUnavailableReason?: string;
     localResult?: ValidationResult;
 }
 
 export interface ServerValidatorOptions {
-    /** Native n8n MCP HTTP endpoint. When unset no server validation is attempted. */
+    /** Native n8n MCP HTTP endpoint of the target instance. */
     endpoint?: string;
-    /** Bearer token for the MCP endpoint. When unset the environment API key is used. */
+    /** Bearer token for the MCP endpoint: the configured native-MCP token, or the environment API key. */
     token?: string;
-    /** Fallback bearer for self-hosted instances whose MCP server accepts the API key. */
-    fallbackToken?: string;
     timeoutMs?: number;
+}
+
+/** Loopback hostnames on which plaintext http is acceptable (local dev/self-hosted instances). */
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0']);
+
+function isSchemeAllowed(endpoint: string): boolean {
+    try {
+        const parsed = new URL(endpoint);
+        if (parsed.protocol === 'https:') return true;
+        if (parsed.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(parsed.hostname)) return true;
+        return false;
+    } catch {
+        return false;
+    }
 }
 
 interface McpResult {
@@ -35,19 +55,21 @@ interface McpResult {
 
 /**
  * Compiles a local workflow file (`.workflow.ts` or JSON) into the workflow JSON
- * shape n8n's `validate_node_config` RPC expects, and validates it.
+ * shape n8n's `validate_node_config` RPC expects, and validates it before push.
  *
- * Validation order mirrors n8n itself:
- *  1. Server path — when the active environment exposes a native n8n MCP server
- *     with a `validate_node_config` tool, the instance schema is the ground
- *     truth (it never drifts from the instance like locally bundled schemas do).
- *  2. Local path — the bundled technical node index, which catches the
- *     display-option gating and resource-locator shape errors n8n's server
- *     validator reports (same error phrasing).
+ * Validation model — local first, instance as the authoritative upgrade:
+ *  1. Local (default): the bundled technical node index runs the server-equivalent
+ *     gating rules (display-option gating with schema defaults, resource-locator
+ *     shape, option values, required parameters). Always available, no network.
+ *  2. Instance (upgrade): when the environment reaches an n8n MCP server exposing
+ *     `validate_node_config`, the instance's own schema is the ground truth — it
+ *     never drifts from the instance the way the bundled index (built from the
+ *     latest n8n GitHub tag) can. The same API key authenticates on self-hosted
+ *     instances with the MCP server enabled; n8n Cloud needs its dedicated
+ *     instance-level MCP token.
  *
- * A push that would deploy server-invalid nodes is blocked before any remote
- * write; this is the same guarantee the n8n UI gives when a workflow cannot be
- * saved with invalid parameters.
+ * A push that would deploy instance-invalid nodes is blocked before any remote
+ * write — the same guarantee the n8n UI gives when a workflow cannot be saved.
  */
 export class PreflightNodeValidator {
     private readonly technicalIndexPath: string | undefined;
@@ -135,12 +157,20 @@ export class PreflightNodeValidator {
         });
     }
 
+    /**
+     * Minimal streamable-HTTP MCP client for one validate_node_config round trip:
+     * initialize → notifications/initialized → tools/list → tools/call, then an
+     * authenticated DELETE to release the session (mirrors NativeMcpHttpClient).
+     */
     private async callServerValidate(nodes: any[]): Promise<McpResult> {
-        const { endpoint, token, fallbackToken, timeoutMs = 10000 } = this.server;
+        const { endpoint, token, timeoutMs = 10000 } = this.server;
         if (!endpoint) throw new Error('No native MCP endpoint configured');
+        if (!isSchemeAllowed(endpoint)) {
+            throw new Error(`Refusing to send credentials to a non-HTTPS endpoint (${endpoint}); only loopback http is allowed.`);
+        }
 
         let sessionId: string | undefined;
-        const rpc = async (payload: Record<string, unknown>, expectResult = true): Promise<any> => {
+        const post = async (payload: Record<string, unknown>, expectResponse = true): Promise<any> => {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeoutMs);
             try {
@@ -150,7 +180,7 @@ export class PreflightNodeValidator {
                     'mcp-protocol-version': '2024-11-05',
                     'User-Agent': 'n8n-as-code-preflight',
                 };
-                if (token || fallbackToken) headers.Authorization = `Bearer ${token || fallbackToken}`;
+                if (token) headers.Authorization = `Bearer ${token}`;
                 if (sessionId) headers['mcp-session-id'] = sessionId;
 
                 const response = await fetch(endpoint, {
@@ -159,11 +189,16 @@ export class PreflightNodeValidator {
                     body: JSON.stringify(payload),
                     signal: controller.signal,
                 });
-                if (!response.ok) {
-                    throw new Error(`Native MCP HTTP ${response.status} ${response.statusText}`);
-                }
-                sessionId = response.headers.get('mcp-session-id') || sessionId;
                 const text = await response.text();
+                sessionId = response.headers.get('mcp-session-id') || sessionId;
+
+                if (!response.ok) {
+                    throw new Error(`Native MCP HTTP ${response.status} ${response.statusText}: ${text.slice(0, 200)}`);
+                }
+                if (!expectResponse || !text.trim()) {
+                    return undefined;
+                }
+
                 let data: any;
                 try {
                     data = JSON.parse(text);
@@ -177,14 +212,38 @@ export class PreflightNodeValidator {
                 }
                 if (!data) throw new Error(`Unparseable native MCP response: ${text.slice(0, 200)}`);
                 if (data.error) throw new Error(`Native MCP RPC error (${data.error.code}): ${data.error.message}`);
-                return expectResult ? data.result : data;
+                return data.result;
+            } catch (error: any) {
+                if (error?.name === 'AbortError') {
+                    throw new Error(`Native MCP request timed out after ${timeoutMs}ms`);
+                }
+                throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        };
+
+        const close = async (): Promise<void> => {
+            if (!sessionId) return;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const headers: Record<string, string> = {
+                    'mcp-protocol-version': '2024-11-05',
+                    'User-Agent': 'n8n-as-code-preflight',
+                    'mcp-session-id': sessionId,
+                };
+                if (token) headers.Authorization = `Bearer ${token}`;
+                await fetch(endpoint, { method: 'DELETE', headers, signal: controller.signal });
+            } catch {
+                // Best-effort cleanup; a failure here must not mask validation results.
             } finally {
                 clearTimeout(timer);
             }
         };
 
         try {
-            const init = await rpc({
+            const init = await post({
                 jsonrpc: '2.0',
                 id: 1,
                 method: 'initialize',
@@ -192,12 +251,15 @@ export class PreflightNodeValidator {
             });
             sessionId = sessionId || init?.sessionId;
 
-            const toolList: any = await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
+            // Completes the MCP handshake; its response is an empty notification.
+            await post({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }, false).catch(() => undefined);
+
+            const toolList: any = await post({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
             const tools: any[] = Array.isArray(toolList?.tools) ? toolList.tools : [];
             const hasValidator = tools.some((t) => t?.name === 'validate_node_config');
             if (!hasValidator) throw new Error('Instance MCP server does not expose validate_node_config');
 
-            const result: any = await rpc({
+            const result: any = await post({
                 jsonrpc: '2.0',
                 id: 3,
                 method: 'tools/call',
@@ -211,12 +273,7 @@ export class PreflightNodeValidator {
             }
             return { ...result, structuredContent: structured };
         } finally {
-            // Best-effort session close; a failure here must not mask validation results.
-            if (sessionId) {
-                try {
-                    await rpc({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }, false);
-                } catch { /* already closed */ }
-            }
+            await close();
         }
     }
 
@@ -231,6 +288,7 @@ export class PreflightNodeValidator {
         const invalid = results.filter((r) => r.valid !== true);
         return {
             source: 'server',
+            serverAttempted: true,
             valid: invalid.length === 0,
             issues: invalid.map((r) => ({
                 name: String(r.name ?? '?'),
@@ -250,28 +308,30 @@ export class PreflightNodeValidator {
     async validateFile(filePath: string): Promise<PreflightValidationOutcome> {
         const workflow = await this.compileWorkflowFile(filePath);
 
-        // 1. Server-authoritative path (when an MCP endpoint is available).
+        // Instance path (authoritative upgrade) — attempted whenever an endpoint is
+        // reachable; the instance's own schema never drifts from the instance.
         if (this.server.endpoint) {
             try {
                 const payload = this.buildNodePayload(workflow);
                 const result = await this.callServerValidate(payload);
                 return this.serverOutcome(result);
             } catch (error: any) {
-                // Fall through to the local schema — the server may be an older
-                // build without validate_node_config, or MCP may be disabled.
-                const skippedReason = error?.message || String(error);
+                // The instance may run an n8n build without validate_node_config,
+                // MCP may be disabled, or the endpoint may reject the token —
+                // fall through to the bundled-schema (default) validation.
+                const reason = error?.message || String(error);
                 const local = await this.validateWorkflowJson(workflow);
                 return {
                     ...local,
-                    source: 'local',
-                    skippedReason: `Server-side validation unavailable (${skippedReason}).`,
+                    serverAttempted: true,
+                    serverUnavailableReason: reason,
                 };
             }
         }
 
-        // 2. Local schema path (always available; bundled technical node index).
+        // Bundled-schema path (default) — always available, no network required.
         const local = await this.validateWorkflowJson(workflow);
-        return { ...local, source: 'local' };
+        return { ...local, serverAttempted: false };
     }
 
     private async validateWorkflowJson(workflow: any): Promise<PreflightValidationOutcome> {
@@ -281,6 +341,7 @@ export class PreflightNodeValidator {
         const result = await validator.validateWorkflow(workflow, false);
         return {
             source: 'local',
+            serverAttempted: false,
             valid: result.valid,
             issues: result.errors.map((e) => ({
                 name: e.nodeName ?? 'unknown',
