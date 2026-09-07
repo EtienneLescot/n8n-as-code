@@ -1575,6 +1575,7 @@ export class AgentRuntimeController implements vscode.Disposable {
             const pending = [...pendingOperationEvents.values()];
             pendingOperationEvents = new Map();
             for (const pendingEvent of pending) {
+                if (signal.aborted) break;
                 await emitStreamEventNow(pendingEvent);
             }
         };
@@ -3905,6 +3906,9 @@ export class AgentRuntimeController implements vscode.Disposable {
             const existingEntry = existingIndex >= 0 && next[existingIndex]?.kind === 'operation'
                 ? next[existingIndex] as Extract<AgentTimelineEntry, { kind: 'operation' }>
                 : undefined;
+            if (event.status === 'running' && existingEntry?.status && existingEntry.status !== 'running') {
+                return next;
+            }
             const shouldPreserveOperationSummary = ['shell', 'file-read', 'file-write', 'todo'].includes(event.category);
             const operationEntry: AgentTimelineEntry = {
                 kind: 'operation',
