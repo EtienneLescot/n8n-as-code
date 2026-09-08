@@ -11,7 +11,24 @@ import {
     type N8nInstanceVerificationStatus,
     type UpsertGlobalN8nInstanceInput,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient, createCanonicalInstanceIdentifier, createInstanceIdentifier, createInstanceUserIdentifier, isCanonicalInstanceIdentifier, isCanonicalInstanceUserIdentifier, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, resolveN8nIdentity as resolveN8nIdentityFromApi, type IResolvedN8nIdentity } from '../core/index.js';
+// Deep imports, not the `../core/index.js` barrel: the barrel re-exports sync-manager
+// (-> transformer -> ts-morph) and preflight-node-validator (-> @n8n-as-code/skills),
+// ~547ms of module graph that every command running an action pays through the
+// telemetry postAction hook, including `skills node-info`.
+import { N8nApiClient } from '../core/services/n8n-api-client.js';
+import {
+    createCanonicalInstanceIdentifier,
+    createInstanceIdentifier,
+    createInstanceUserIdentifier,
+    isCanonicalInstanceIdentifier,
+    isCanonicalInstanceUserIdentifier,
+    isCanonicalUserInstanceIdentifier,
+} from '../core/services/directory-utils.js';
+import {
+    resolveInstanceIdentifier,
+    resolveN8nIdentity as resolveN8nIdentityFromApi,
+    type IResolvedN8nIdentity,
+} from '../core/services/instance-identifier.js';
 
 const DEFAULT_SYNC_FOLDER = 'workflows';
 

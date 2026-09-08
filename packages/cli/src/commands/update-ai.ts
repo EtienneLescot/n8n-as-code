@@ -153,7 +153,12 @@ async function createAiContextGenerator(): Promise<AiContextGeneratorInstance> {
 }
 
 export class UpdateAiCommand {
-    constructor(private program: Command) {
+    /**
+     * `program` is optional: packages/cli/src/index.ts registers the command itself so the
+     * module can be loaded lazily. Passing a program keeps the original self-registering shape.
+     */
+    constructor(private program?: Command) {
+        if (!this.program) return;
         this.program
             .command('update-ai')
             .description('Update AI Context (AGENTS.md and snippets)')
