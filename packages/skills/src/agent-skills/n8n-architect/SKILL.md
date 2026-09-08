@@ -246,7 +246,12 @@ Native MCP assist is a complementary knowledge, live-state, and runtime enrichme
 
 ## Knowledge Commands
 
-Use these commands instead of guessing:
+If your runtime exposes `n8n-as-code` MCP tools (`search_n8n_knowledge`, `get_n8n_node_info`,
+`search_n8n_workflow_examples`, `validate_n8n_workflow`), prefer them over the commands below.
+They answer from a resident process that parses the ontology once, so every call after the
+first is effectively free, while each shell command pays a fresh process start.
+
+Otherwise, use these commands instead of guessing:
 
 ```bash
 {{N8NAC_SKILLS_CMD}} search "<node or capability>"
