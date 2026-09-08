@@ -33,4 +33,50 @@ describe('compact projection (universal, no per-node heuristics)', () => {
         expect(snippet.length).toBeLessThan(500);
         expect(snippet).toMatch(`type: 'gmailTool'`);
     });
+
+    test('required list is capped with a truncation marker', () => {
+        const manyRequired = {
+            ...bigSchema,
+            properties: Array.from({ length: 40 }, (_, i) => ({
+                name: `req${i}`,
+                type: 'string',
+                required: true,
+            })),
+        };
+        const compact = TypeScriptFormatter.generateCompactNodeDoc(manyRequired as any);
+        expect(compact).toMatch('req14');
+        expect(compact).not.toMatch('req15');
+        expect(compact).toMatch('+25 more required');
+    });
+
+    test('gating flag list is capped with a truncation marker', () => {
+        const manyGating = {
+            ...bigSchema,
+            properties: [],
+            parameterGating: Array.from({ length: 14 }, (_, i) => ({
+                flag: `flag${i}`,
+                gatedParams: [],
+                aiConnectionType: null,
+            })),
+        };
+        const compact = TypeScriptFormatter.generateCompactNodeDoc(manyGating as any);
+        expect(compact).toMatch('flag9');
+        expect(compact).not.toMatch('flag10');
+        expect(compact).toMatch('+4 more flags');
+    });
+
+    test('custom caps override the defaults', () => {
+        const manyRequired = {
+            ...bigSchema,
+            properties: Array.from({ length: 10 }, (_, i) => ({
+                name: `req${i}`,
+                type: 'string',
+                required: true,
+            })),
+        };
+        const compact = TypeScriptFormatter.generateCompactNodeDoc(manyRequired as any, { maxRequired: 3 });
+        expect(compact).toMatch('req2');
+        expect(compact).not.toMatch('req3');
+        expect(compact).toMatch('+7 more required');
+    });
 });

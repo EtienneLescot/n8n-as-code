@@ -485,22 +485,32 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                     raw = readFileSync(options.callsFile, 'utf8');
                 }
                 if (!raw) {
-                    raw = await new Promise<string>((resolvePromise, reject) => {
-                        let data = '';
-                        process.stdin.setEncoding('utf8');
-                        process.stdin.on('data', (chunk) => { data += chunk; });
-                        process.stdin.on('end', () => resolvePromise(data));
-                        process.stdin.on('error', reject);
-                        if (process.stdin.isTTY) resolvePromise('');
-                    });
+                    // TTY first: attaching 'data' listeners puts stdin in
+                    // flowing mode and keeps the process alive after printing.
+                    // A terminal with no piped input means an empty call list.
+                    if (process.stdin.isTTY) {
+                        raw = '[]';
+                    } else {
+                        raw = await new Promise<string>((resolvePromise, reject) => {
+                            let data = '';
+                            process.stdin.setEncoding('utf8');
+                            process.stdin.on('data', (chunk) => { data += chunk; });
+                            process.stdin.on('end', () => resolvePromise(data));
+                            process.stdin.on('error', reject);
+                        });
+                    }
                 }
                 const calls = JSON.parse(raw || '[]');
                 if (!Array.isArray(calls)) throw new Error('--calls must be a JSON array');
                 const compact = !!options.compact;
                 const results: any[] = [];
                 for (const call of calls) {
-                    const cmd = call.cmd || call.command;
+                    // cmd lookup must not throw outside the per-call boundary:
+                    // a malformed record (null, string) would otherwise abort
+                    // the whole batch and skip the valid calls after it.
+                    const cmd = call && typeof call === 'object' ? (call.cmd || call.command) : undefined;
                     try {
+                        if (!cmd) throw new Error('Each call must be an object like {"cmd":"node-info","name":"gmailTool"}');
                         if (cmd === 'search') {
                             const knowledgeSearch = await getKnowledgeSearch();
                             const res = knowledgeSearch.searchAll(call.query || '', {
@@ -515,8 +525,13 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                             const provider = await getProvider();
                             let schema = provider.getNodeSchema(call.name);
                             if (!schema && cmd === 'node-schema') {
+                                // Same relevance rule as standalone node-schema:
+                                // accept the fuzzy hit only on high score or
+                                // exact name, otherwise report not-found.
                                 const sr = provider.searchNodes(call.name, 1);
-                                if (sr.length > 0) schema = provider.getNodeSchema(sr[0].name);
+                                if (sr.length > 0 && (((sr[0] as any).relevanceScore || 0) > 80 || sr[0].name.toLowerCase() === String(call.name).toLowerCase())) {
+                                    schema = provider.getNodeSchema(sr[0].name);
+                                }
                             }
                             if (!schema) {
                                 results.push({ cmd, name: call.name, ok: false, error: `Node '${call.name}' not found.` });
@@ -572,7 +587,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                             results.push({ cmd, ok: false, error: `Unsupported batch cmd '${cmd}'. Use search, node-info, node-schema, examples-search, or examples-info.` });
                         }
                     } catch (err: any) {
-                        results.push({ cmd, ok: false, error: err.message });
+                        results.push({ cmd: cmd || 'unknown', ok: false, error: err.message });
                     }
                 }
                 console.log(JSON.stringify(results, null, 2));

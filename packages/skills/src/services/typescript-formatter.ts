@@ -262,9 +262,11 @@ ${interfaceBody}
             gatedParams: string[];
             aiConnectionType: string | null;
         }>;
-    }, opts: { maxDesc?: number; maxEnum?: number } = {}): string {
+    }, opts: { maxDesc?: number; maxEnum?: number; maxRequired?: number; maxGating?: number } = {}): string {
         const maxDesc = opts.maxDesc ?? 300;
         const maxEnum = opts.maxEnum ?? 10;
+        const maxRequired = opts.maxRequired ?? 15;
+        const maxGating = opts.maxGating ?? 10;
         const latestVersion = Array.isArray(schema.version)
             ? Math.max(...schema.version)
             : schema.version;
@@ -284,7 +286,10 @@ ${interfaceBody}
         }
         if (required.length > 0) {
             lines.push(`// required:`);
-            lines.push(...required);
+            lines.push(...required.slice(0, maxRequired));
+            if (required.length > maxRequired) {
+                lines.push(`//   ... (+${required.length - maxRequired} more required — see node-schema --json)`);
+            }
         }
         lines.push(this.generateMinimalSnippet({
             name: schema.name,
@@ -295,8 +300,11 @@ ${interfaceBody}
         const gating = schema.parameterGating || [];
         if (gating.length > 0) {
             lines.push(`// gating flags (set true only when using the gated params/connection):`);
-            for (const g of gating) {
+            for (const g of gating.slice(0, maxGating)) {
                 lines.push(`//   - ${g.flag}`);
+            }
+            if (gating.length > maxGating) {
+                lines.push(`//   ... (+${gating.length - maxGating} more flags — see node-info --json)`);
             }
         }
         return lines.join('\n') + '\n';
