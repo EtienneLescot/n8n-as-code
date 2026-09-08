@@ -505,7 +505,28 @@ environmentProgram.command('list')
     .action(async (options) => {
         const configService = new (await load.config()).ConfigService();
         const config = configService.getWorkspaceConfig();
-        const environments = configService.listEnvironments().map((environment) => {
+        // A workspace `.env` resolves an environment that was never written to disk, so
+        // "none listed" read as "nothing configured" right after a successful setup.
+        const persisted = configService.listEnvironments();
+        if (persisted.length === 0) {
+            let derived;
+            try {
+                derived = configService.resolveEnvironment();
+            } catch {
+                derived = undefined;
+            }
+            if (derived) {
+                printJsonOrText(
+                    options,
+                    [{ name: derived.environmentName, host: derived.host, source: 'env-file', active: true }],
+                    chalk.cyan(`
+${derived.environmentName} (derived from .env) -> ${derived.host}
+`),
+                );
+                return;
+            }
+        }
+        const environments = persisted.map((environment) => {
             const resolved = (() => { try { return configService.resolveEnvironment(environment.id); } catch { return undefined; } })();
             return { ...environment, resolved: redactResolvedEnvironment(resolved) };
         });
@@ -709,6 +730,7 @@ environmentAuthProgram.command('clear')
     .description("Remove the API key for an environment, plus the folder-login session for its instance target (shared by any environment on that target)")
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--json', 'Output resolved environment as JSON')
+    .option('--no-probe', 'Skip the instance reachability check and report configuration only')
     .action(async (nameOrId, options) => {
         const configService = new (await load.config()).ConfigService();
         const environment = configService.getEnvironment(nameOrId);
@@ -790,6 +812,38 @@ environmentAuthProgram.command('folder-logout')
         );
     });
 
+/**
+ * Verify the resolved environment can actually reach its instance.
+ *
+ * `accessStatus` existed but was derived from stored verification state that nothing ever
+ * wrote, so it read `unknown` forever: a wrong host or a revoked key looked exactly like a
+ * working one, and `env status` — which the generated guidance calls the source of
+ * workspace readiness — could not answer the question it exists to answer.
+ *
+ * Capped and never fatal, so an offline workspace still reports its configuration.
+ */
+async function probeEnvironmentAccess(
+    environment: { host?: string; apiKey?: string; apiKeyAvailable?: boolean },
+    timeoutMs = 5000,
+): Promise<'ready' | 'invalid-api-key' | 'runtime-unavailable' | undefined> {
+    if (!environment.host) return 'runtime-unavailable';
+    if (!environment.apiKey) return undefined;
+
+    const { N8nApiClient } = await import('./core/services/n8n-api-client.js');
+    const client = new N8nApiClient({ host: environment.host, apiKey: environment.apiKey });
+
+    try {
+        const outcome = await Promise.race([
+            client.verifyAccess(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('probe timed out')), timeoutMs)),
+        ]);
+        if (outcome.ok) return 'ready';
+        return outcome.reason === 'unauthorized' ? 'invalid-api-key' : 'runtime-unavailable';
+    } catch {
+        return 'runtime-unavailable';
+    }
+}
+
 environmentProgram.command('status')
     .description('Show resolved workspace environment context')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
@@ -797,7 +851,9 @@ environmentProgram.command('status')
     .action(async (nameOrId, options) => {
         const configService = new (await load.config()).ConfigService();
         try {
-            const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+            const resolved = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+            const probed = options.probe === false ? undefined : await probeEnvironmentAccess(resolved);
+            const environment = probed ? { ...resolved, accessStatus: probed } : resolved;
             printJsonOrText(
                 options,
                 redactResolvedEnvironment(environment),
@@ -809,6 +865,7 @@ environmentProgram.command('status')
                     `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
                     `Workflows path: ${chalk.bold(environment.workflowsPath || '(unresolved)')}`,
                     `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
+                    `Access  : ${chalk.bold(environment.accessStatus)}`,
                     '',
                 ].join('\n'),
             );
