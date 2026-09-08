@@ -889,7 +889,7 @@ environmentProgram.command('status')
     });
 
 hideCommand(program.command('setup'))
-    .description('Choose how this facade should use n8n runtime capabilities')
+    .description('Choose how this facade should use n8n runtime capabilities. A workspace .env holding N8N_HOST (and optionally N8N_API_KEY) is picked up on its own, so --host and --api-key are only needed when there is none.')
     .option('--mode <mode>', 'managed-local, connect-existing, or generation-only', 'connect-existing')
     .option('--host <url>', 'Existing n8n URL for connect-existing mode')
     .option('--api-key <key>', 'Existing n8n API key for active credential operations')
