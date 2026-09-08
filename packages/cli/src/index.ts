@@ -114,8 +114,14 @@ function printJsonOrText(options: { json?: boolean }, payload: unknown, text: st
     console.log(text);
 }
 
+/**
+ * Keep a command out of the top-level `--help` index while leaving it fully usable.
+ *
+ * Commander reads `_hidden`; assigning a public `hidden` property does nothing, which is
+ * why `setup` and `setup-modes` were listed for as long as this helper existed.
+ */
 function hideCommand<T extends Command>(command: T): T {
-    (command as T & { hidden: boolean }).hidden = true;
+    (command as T & { _hidden: boolean })._hidden = true;
     return command;
 }
 
@@ -1683,6 +1689,26 @@ program.command('update-ai')
 if (shouldLoadSkillsCommands(process.argv)) {
     const { registerSkillsCommands } = await loadSkillsRegistrar();
     registerSkillsCommands(skillsCmd, getSkillsAssetsDir());
+}
+
+/**
+ * Kept out of the top-level `--help` index so it fits a screen.
+ *
+ * An install probe agent read the 25-command listing in two passes and then gave up and
+ * grepped the compiled bundle to enumerate commands. Everything here stays fully
+ * available and still documents itself through `n8nac <command> --help`; it is the index
+ * that is trimmed, not the surface.
+ *
+ * The line is "occasional for every audience", not "human rather than agent": telemetry
+ * opt-out, one-off format conversion, a cache refresh, an environment promotion, and
+ * starting a server a plugin normally starts. Hiding what a human reaches for to make an
+ * agent's index shorter would trade one audience for the other.
+ */
+const SECONDARY_COMMANDS = new Set([
+    'telemetry', 'credentials', 'find', 'fetch', 'promote', 'convert', 'convert-batch', 'mcp',
+]);
+for (const command of program.commands) {
+    if (SECONDARY_COMMANDS.has(command.name())) hideCommand(command);
 }
 
 try {

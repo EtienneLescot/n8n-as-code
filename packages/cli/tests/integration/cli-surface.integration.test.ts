@@ -19,12 +19,18 @@ const repoRoot = path.resolve(import.meta.dirname, '../../../..');
 const cliEntry = path.join(repoRoot, 'packages/cli/dist/index.js');
 
 /** Every top-level command the CLI is expected to expose. */
+/** Every top-level command, listed in `--help` or not. All must remain runnable. */
 const TOP_LEVEL_COMMANDS = [
     'telemetry', 'workspace', 'env', 'setup', 'setup-modes', 'credentials',
     'list', 'find', 'pull', 'push', 'promote', 'verify', 'test', 'test-plan',
     'fetch', 'resolve', 'convert', 'convert-batch', 'native-mcp', 'mcp',
     'workflow', 'execution', 'credential', 'skills', 'update-ai',
 ];
+
+/** The commands the top-level index is expected to show. */
+const LISTED_COMMANDS = TOP_LEVEL_COMMANDS.filter((c) => ![
+    'telemetry', 'credentials', 'find', 'fetch', 'promote', 'convert', 'convert-batch', 'mcp', 'setup', 'setup-modes',
+].includes(c));
 
 function runCli(args: string[]): string {
     return execFileSync('node', [cliEntry, ...args], {
@@ -42,7 +48,7 @@ function listedCommands(helpOutput: string): string[] {
 describe('CLI command surface', () => {
     it('lists every top-level command in --help', () => {
         const listed = listedCommands(runCli(['--help']));
-        for (const command of TOP_LEVEL_COMMANDS) {
+        for (const command of LISTED_COMMANDS) {
             expect(listed).toContain(command);
         }
     }, INTEGRATION_TIMEOUT);
@@ -92,6 +98,20 @@ describe('CLI command surface', () => {
             expect(help).toContain(option);
         }
     }, INTEGRATION_TIMEOUT);
+
+    it('keeps the top-level index short while every command stays reachable', () => {
+        // An install probe agent read a 25-command listing in two passes, then gave up and
+        // grepped the compiled bundle to enumerate commands. Hidden commands are trimmed
+        // from the index only: each still runs and still documents itself.
+        const listed = listedCommands(runCli(['--help']));
+        const hidden = ['telemetry', 'credentials', 'find', 'fetch', 'promote', 'convert', 'convert-batch', 'mcp', 'setup', 'setup-modes'];
+
+        for (const command of hidden) {
+            expect(listed).not.toContain(command);
+            expect(() => runCli([command, '--help'])).not.toThrow();
+        }
+        expect(listed.length).toBeLessThanOrEqual(18);
+    }, INTEGRATION_TIMEOUT * 4);
 
     it('prints a version without loading a command module', () => {
         expect(runCli(['--version']).trim()).toMatch(/^\d+\.\d+\.\d+/);
