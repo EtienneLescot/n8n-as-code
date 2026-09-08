@@ -502,3 +502,18 @@ export class NodeSchemaProvider {
         }));
     }
 }
+
+/**
+ * Resolve a node by name the way the CLI does: an exact match first, then a single
+ * high-confidence fuzzy hit. Shared so `n8nac skills node-info` and the MCP server's
+ * `get_n8n_node_info` cannot drift apart on what counts as a match.
+ */
+export function resolveNode(provider: NodeSchemaProvider, name: string): any {
+    const exact = provider.getNodeSchema(name);
+    if (exact) return exact;
+    const [best] = provider.searchNodes(name, 1);
+    if (best && ((best.relevanceScore || 0) > 80 || best.name.toLowerCase() === name.toLowerCase())) {
+        return provider.getNodeSchema(best.name);
+    }
+    return undefined;
+}

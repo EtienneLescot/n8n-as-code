@@ -8,6 +8,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { resolveNode } from '../services/node-schema-provider.js';
 import { TypeScriptFormatter } from '../services/typescript-formatter.js';
 import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
@@ -341,16 +342,6 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         properties: schema.schema?.properties || [],
     });
 
-    /** Exact match first, then a single high-confidence fuzzy hit. */
-    const lookupNode = (provider: any, name: string): any => {
-        const exact = provider.getNodeSchema(name);
-        if (exact) return exact;
-        const [best] = provider.searchNodes(name, 1);
-        if (best && ((best.relevanceScore || 0) > 80 || best.name.toLowerCase() === name.toLowerCase())) {
-            return provider.getNodeSchema(best.name);
-        }
-        return undefined;
-    };
 
     /** Renders one or more nodes; exits 1 only when nothing at all resolved. */
     const emitNodes = async (names: string[], options: any, render: NodeRenderers, hint?: (name: string) => void) => {
@@ -358,7 +349,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         const found: any[] = [];
 
         for (const name of names) {
-            const schema = lookupNode(provider, name);
+            const schema = resolveNode(provider, name);
             if (schema) found.push(schema);
             else console.error(chalk.red(`Node '${name}' not found.`));
         }

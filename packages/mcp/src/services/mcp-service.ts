@@ -1,9 +1,12 @@
-import { spawn } from 'child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
-import { tmpdir } from 'os';
-import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import type {
+    CustomNodesResolution,
+    KnowledgeSearch,
+    NodeSchemaProvider,
+    WorkflowRegistry,
+    WorkflowValidator,
+} from '@n8n-as-code/skills';
 import { NativeMcpHttpClient } from './native-mcp-client.js';
 import { loadNativeMcpConfig, redactNativeMcpConfig, type NativeMcpConfig, type NativeMcpWorkspaceConfigInput } from './native-mcp-config.js';
 import {
@@ -15,6 +18,8 @@ import {
 
 export interface N8nAsCodeMcpServiceOptions {
     cwd?: string;
+    /** Override the generated knowledge assets directory. Tests point this at fixtures. */
+    assetsDir?: string;
     nativeMcpEnv?: NodeJS.ProcessEnv;
     nativeMcpWorkspace?: NativeMcpWorkspaceConfigInput;
 }
@@ -24,6 +29,7 @@ export interface ValidateWorkflowOptions {
     format?: 'auto' | 'json' | 'typescript';
 }
 
+/** @deprecated The MCP server no longer shells out to the CLI. Retained as public API. */
 export interface CliExecutionResult {
     command: string[];
     cwd: string;
@@ -52,9 +58,21 @@ function detectWorkflowFormat(workflowContent: string, format: 'auto' | 'json' |
 export class N8nAsCodeMcpService {
     readonly cwd: string;
     private readonly nativeMcpConfig: NativeMcpConfig;
+    private readonly assetsDirOverride?: string;
+
+    // Local knowledge services, loaded once and kept warm for the life of the server.
+    // Per-service rather than one bundle: a node lookup must not pay for the workflow
+    // example index, and only the validator drags in ts-morph.
+    private customNodes?: Promise<CustomNodesResolution>;
+    private provider?: Promise<NodeSchemaProvider>;
+    private knowledge?: Promise<KnowledgeSearch>;
+    private registry?: Promise<WorkflowRegistry>;
+    private validator?: Promise<WorkflowValidator>;
+    private assetsDir?: string;
 
     constructor(options: N8nAsCodeMcpServiceOptions = {}) {
         this.cwd = options.cwd || process.cwd();
+        this.assetsDirOverride = options.assetsDir;
         this.nativeMcpConfig = loadNativeMcpConfig(options.nativeMcpEnv, {
             cwd: this.cwd,
             environmentNameOrId: options.nativeMcpEnv?.N8NAC_ENVIRONMENT,
@@ -131,88 +149,72 @@ export class N8nAsCodeMcpService {
         return status;
     }
 
-    private getCliEntryPath(): string {
-        const require = createRequire(import.meta.url);
-        try {
-            const cliPkg = require.resolve('n8nac/package.json');
-            return join(dirname(cliPkg), 'dist', 'index.js');
-        } catch {
-            // Fallback for monorepo development: n8nac is a sibling workspace package
-            // From dist/services/ -> ../../../ reaches packages/, then cli/dist/index.js
-            return fileURLToPath(new URL('../../../cli/dist/index.js', import.meta.url));
+    private async getAssetsDir(): Promise<string> {
+        if (this.assetsDir === undefined) {
+            const { resolveSkillsAssetsDir } = await import('@n8n-as-code/skills');
+            this.assetsDir = this.assetsDirOverride ?? resolveSkillsAssetsDir();
         }
+        return this.assetsDir;
     }
 
-    private async runCliCommand(args: string[], parseJson: boolean = false): Promise<CliExecutionResult> {
-        const cliEntryPath = this.getCliEntryPath();
-
-        return new Promise((resolvePromise, reject) => {
-            const child = spawn(process.execPath, [cliEntryPath, ...args], {
-                cwd: this.cwd,
-                env: {
-                    ...process.env,
-                    FORCE_COLOR: '0',
-                    NO_COLOR: '1',
-                },
-                stdio: ['ignore', 'pipe', 'pipe'],
-            });
-
-            let stdout = '';
-            let stderr = '';
-
-            child.stdout.on('data', (chunk) => {
-                stdout += chunk.toString();
-            });
-
-            child.stderr.on('data', (chunk) => {
-                stderr += chunk.toString();
-            });
-
-            child.on('error', reject);
-            child.on('close', (exitCode) => {
-                const trimmedStdout = stdout.trim();
-                const result: CliExecutionResult = {
-                    command: [process.execPath, cliEntryPath, ...args],
-                    cwd: this.cwd,
-                    exitCode: exitCode ?? 1,
-                    success: exitCode === 0,
-                    stdout: trimmedStdout,
-                    stderr: stderr.trim(),
-                };
-
-                if (parseJson && trimmedStdout) {
-                    try {
-                        result.parsedJson = JSON.parse(trimmedStdout);
-                    } catch (error: any) {
-                        result.parsedJson = {
-                            parseError: error.message,
-                            raw: trimmedStdout,
-                        };
-                    }
-                }
-
-                resolvePromise(result);
-            });
-        });
+    /**
+     * Resolved against this service's cwd, not the process cwd. The spawn path used to get
+     * this right by accident, by passing `cwd` to the child process.
+     */
+    private getCustomNodes(): Promise<CustomNodesResolution> {
+        if (!this.customNodes) {
+            this.customNodes = import('@n8n-as-code/skills')
+                .then(({ resolveCustomNodesConfig }) => resolveCustomNodesConfig(this.cwd));
+        }
+        return this.customNodes;
     }
 
-    private async runCliJsonCommand(args: string[]): Promise<any> {
-        const result = await this.runCliCommand(args, true);
-        const parsed = result.parsedJson;
-        const hasParseError =
-            parsed !== null &&
-            typeof parsed === 'object' &&
-            'parseError' in (parsed as Record<string, unknown>);
-
-        if (typeof parsed !== 'undefined' && !hasParseError) {
-            return parsed;
+    private getProvider(): Promise<NodeSchemaProvider> {
+        if (!this.provider) {
+            this.provider = Promise.all([
+                import('@n8n-as-code/skills'),
+                this.getAssetsDir(),
+                this.getCustomNodes(),
+            ]).then(([{ NodeSchemaProvider }, assetsDir, customNodes]) =>
+                new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodes.resolvedPath));
         }
+        return this.provider;
+    }
 
-        if (!result.success) {
-            throw new Error(result.stderr || result.stdout || `CLI command failed: ${args.join(' ')}`);
+    private getKnowledge(): Promise<KnowledgeSearch> {
+        if (!this.knowledge) {
+            this.knowledge = Promise.all([
+                import('@n8n-as-code/skills'),
+                this.getAssetsDir(),
+            ]).then(([{ KnowledgeSearch }, assetsDir]) =>
+                new KnowledgeSearch(join(assetsDir, 'n8n-knowledge-index.json')));
         }
+        return this.knowledge;
+    }
 
-        throw new Error(`CLI command did not return valid JSON: ${args.join(' ')}`);
+    private getRegistry(): Promise<WorkflowRegistry> {
+        if (!this.registry) {
+            this.registry = Promise.all([
+                import('@n8n-as-code/skills'),
+                this.getAssetsDir(),
+            ]).then(([{ WorkflowRegistry }, assetsDir]) =>
+                // Pass the path explicitly: the no-argument constructor self-resolves and,
+                // on a miss, returns an empty index instead of failing.
+                new WorkflowRegistry(join(assetsDir, 'workflows-index.json')));
+        }
+        return this.registry;
+    }
+
+    private getValidator(): Promise<WorkflowValidator> {
+        if (!this.validator) {
+            this.validator = Promise.all([
+                import('@n8n-as-code/skills'),
+                this.getAssetsDir(),
+                this.getCustomNodes(),
+            ]).then(([{ WorkflowValidator }, assetsDir, customNodes]) =>
+                new WorkflowValidator(join(assetsDir, 'n8n-nodes-technical.json'), customNodes.resolvedPath));
+        }
+        return this.validator;
     }
 
     private createNativeMcpClient(): NativeMcpHttpClient {
@@ -234,16 +236,23 @@ export class N8nAsCodeMcpService {
         return this.createNativeMcpClient().callTool(toolName, args);
     }
 
-    searchKnowledge(query: string, options: { category?: string; type?: 'node' | 'documentation'; limit?: number } = {}) {
-        const args = ['skills', 'search', query, '--json'];
-        if (options.category) args.push('--category', options.category);
-        if (options.type) args.push('--type', options.type);
-        if (options.limit) args.push('--limit', String(options.limit));
-        return this.runCliJsonCommand(args);
+    async searchKnowledge(query: string, options: { category?: string; type?: 'node' | 'documentation'; limit?: number } = {}) {
+        // The limit is passed explicitly: KnowledgeSearch defaults to 20 while the CLI's
+        // --limit defaults to 10, so omitting it would silently double every result set.
+        return (await this.getKnowledge()).searchAll(query, {
+            category: options.category,
+            type: options.type,
+            limit: options.limit ?? 10,
+        });
     }
 
-    getNodeInfo(name: string) {
-        return this.runCliJsonCommand(['skills', 'node-info', name, '--json']);
+    async getNodeInfo(name: string) {
+        const { resolveNode } = await import('@n8n-as-code/skills');
+        const schema = resolveNode(await this.getProvider(), name);
+        if (!schema) {
+            throw new Error(`Node '${name}' not found.`);
+        }
+        return schema;
     }
 
     async searchDocs(query: string, options: {
@@ -251,43 +260,40 @@ export class N8nAsCodeMcpService {
         type?: 'node' | 'documentation';
         limit?: number;
     } = {}) {
-        const args = ['skills', 'search', query, '--json'];
-        if (options.category) args.push('--category', options.category);
-        args.push('--type', options.type ?? 'documentation');
-        if (options.limit) args.push('--limit', String(options.limit));
-
-        const result = await this.runCliJsonCommand(args);
+        const result: any = await (await this.getKnowledge()).searchAll(query, {
+            category: options.category,
+            type: options.type ?? 'documentation',
+            limit: options.limit ?? 10,
+        });
         return Array.isArray(result?.results) ? result.results : result;
     }
 
-    searchExamples(query: string, limit: number = 10) {
-        return this.runCliJsonCommand(['skills', 'examples', 'search', query, '--json', '--limit', String(limit)]);
+    async searchExamples(query: string, limit: number = 10) {
+        return (await this.getRegistry()).search(query, limit);
     }
 
-    getExampleInfo(id: string) {
-        return this.runCliJsonCommand(['skills', 'examples', 'info', id, '--json']);
+    async getExampleInfo(id: string) {
+        const registry = await this.getRegistry();
+        const workflow = registry.getById(id);
+        if (!workflow) {
+            throw new Error(`Workflow with ID "${id}" not found.`);
+        }
+        return { ...workflow, rawUrl: registry.getRawUrl(workflow) };
     }
 
     async validateWorkflow({ workflowContent, format = 'auto' }: ValidateWorkflowOptions) {
         const isTypeScript = detectWorkflowFormat(workflowContent, format);
-        const tempDir = mkdtempSync(join(tmpdir(), 'n8nac-mcp-validate-'));
-        const extension = isTypeScript ? '.workflow.ts' : '.json';
-        const tempFile = join(tempDir, `workflow${extension}`);
+        let parsed: any = workflowContent;
 
-        try {
-            if (!isTypeScript) {
-                try {
-                    JSON.parse(workflowContent);
-                } catch (error: any) {
-                    throw new Error(`Invalid JSON workflow content: ${error.message}`);
-                }
+        if (!isTypeScript) {
+            try {
+                parsed = JSON.parse(workflowContent);
+            } catch (error: any) {
+                throw new Error(`Invalid JSON workflow content: ${error.message}`);
             }
-
-            writeFileSync(tempFile, workflowContent, 'utf8');
-            return await this.runCliJsonCommand(['skills', 'validate', tempFile, '--json']);
-        } finally {
-            rmSync(tempDir, { recursive: true, force: true });
         }
+
+        return (await this.getValidator()).validateWorkflow(parsed, isTypeScript);
     }
 
     readWorkflowFile(path: string) {
