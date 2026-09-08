@@ -742,7 +742,6 @@ environmentAuthProgram.command('clear')
     .description("Remove the API key for an environment, plus the folder-login session for its instance target (shared by any environment on that target)")
     .argument('<name-or-id>', 'Environment name or ID')
     .option('--json', 'Output resolved environment as JSON')
-    .option('--no-probe', 'Skip the instance reachability check and report configuration only')
     .action(async (nameOrId, options) => {
         const configService = new (await load.config()).ConfigService();
         const environment = configService.getEnvironment(nameOrId);
@@ -844,15 +843,23 @@ async function probeEnvironmentAccess(
     const { N8nApiClient } = await import('./core/services/n8n-api-client.js');
     const client = new N8nApiClient({ host: environment.host, apiKey: environment.apiKey });
 
+    // The timer must be cleared: an uncleared setTimeout keeps the event loop alive until
+    // it fires, so a probe that answered in 200ms still made the command take the full
+    // timeout to exit. The cap is meant to bound the wait, not to become it.
+    let timer: NodeJS.Timeout | undefined;
     try {
         const outcome = await Promise.race([
             client.verifyAccess(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('probe timed out')), timeoutMs)),
+            new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error('probe timed out')), timeoutMs);
+            }),
         ]);
         if (outcome.ok) return 'ready';
         return outcome.reason === 'unauthorized' ? 'invalid-api-key' : 'runtime-unavailable';
     } catch {
         return 'runtime-unavailable';
+    } finally {
+        if (timer) clearTimeout(timer);
     }
 }
 
@@ -860,6 +867,7 @@ environmentProgram.command('status')
     .description('Show resolved workspace environment context')
     .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
     .option('--json', 'Output resolved environment as JSON')
+    .option('--no-probe', 'Skip the instance reachability check and report configuration only')
     .action(async (nameOrId, options) => {
         const configService = new (await load.config()).ConfigService();
         try {
@@ -890,7 +898,10 @@ environmentProgram.command('status')
                 }, null, 2));
                 process.exit(1);
             }
-            throw error;
+            // Naming an environment that does not exist is a user error. Rethrowing printed
+            // a Node stack trace over the message that already says what to do.
+            console.error(chalk.red(error.message));
+            process.exit(1);
         }
     });
 

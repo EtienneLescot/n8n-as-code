@@ -415,6 +415,32 @@ describe('ConfigService V4 workspace environments', () => {
         expect(configService.listEnvironments()).toHaveLength(0);
     });
 
+    it('refuses a named environment the .env cannot be', () => {
+        // A `.env` defines exactly one environment. Answering to any name meant
+        // `--env prod` reported success against the `.env` host, and the caller believed
+        // it had switched instance.
+        writeFileSync(path.join(workspaceRoot, '.env'), 'N8N_HOST=https://only.example.test\n');
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(configService.resolveEnvironment('default').host).toBe('https://only.example.test');
+        expect(() => configService.resolveEnvironment('prod')).toThrow(/'prod' does not exist/);
+    });
+
+    it('serves the native MCP token the .env carries, since nothing stored it', () => {
+        // `env status` read the token flag off the derived environment and the token itself
+        // off the secret store, which has no entry for an environment that persists nothing.
+        writeFileSync(path.join(workspaceRoot, '.env'), [
+            'N8N_HOST=https://token.example.test',
+            'N8N_NATIVE_MCP_TOKEN=derived-token-789',
+        ].join('\n'));
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(configService.resolveEnvironment().nativeMcp?.tokenConfigured).toBe(true);
+        expect(configService.getNativeMcpToken()).toBe('derived-token-789');
+    });
+
     it("ignores a bare N8N_HOST, n8n's server bind variable rather than a client URL", () => {
         // A stock n8n docker-compose .env carries `N8N_HOST=localhost`. Deriving an
         // environment from it would fail later with no explanation.

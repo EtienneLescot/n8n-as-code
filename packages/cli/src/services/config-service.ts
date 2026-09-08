@@ -673,6 +673,16 @@ export class ConfigService {
             apiKey: envFile.apiKey,
             apiKeyAvailable: Boolean(envFile.apiKey),
             apiKeySource: envFile.apiKey ? 'env' : 'missing',
+            // `resolveEnvironmentFromTarget` derives the status before the key from the
+            // `.env` is attached, so it reported `missing-api-key` for a workspace holding
+            // one. `env status` hid that behind its probe; `--json`, `--no-probe` and every
+            // programmatic reader saw the wrong answer.
+            accessStatus: this.deriveAccessStatus({
+                host: resolved.host,
+                apiKey: envFile.apiKey,
+                projectId: environment.projectId,
+                projectName: environment.projectName,
+            }),
             nativeMcp: resolved.nativeMcp
                 ? { ...resolved.nativeMcp, tokenConfigured: Boolean(envFile.mcpToken) }
                 : undefined,
@@ -683,7 +693,20 @@ export class ConfigService {
         const config = this.readWorkspaceConfigFile();
         if (config.environments.length === 0) {
             const fromEnvFile = this.resolveEnvironmentFromEnvFile();
-            if (fromEnvFile) return fromEnvFile;
+            if (fromEnvFile) {
+                // A `.env` defines exactly one environment. Returning it for any name asked
+                // for meant `--env prod` reported success against the `.env` host: the
+                // caller believed it had switched instance and had not.
+                const requested = environmentNameOrId;
+                if (requested && requested !== fromEnvFile.environment.id && requested !== fromEnvFile.environment.name) {
+                    throw new Error(
+                        `Environment '${requested}' does not exist. This workspace is configured by its .env file, `
+                        + `which defines a single environment ('${fromEnvFile.environment.name}'). `
+                        + 'Run `n8nac env add` to define named environments.',
+                    );
+                }
+                return fromEnvFile;
+            }
             throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
         }
         const environment = environmentNameOrId
@@ -1159,6 +1182,18 @@ export class ConfigService {
     }
 
     getNativeMcpToken(environmentNameOrId?: string): string | undefined {
+        // The `.env`-derived environment persists nothing, so the secret store holds no
+        // entry for it — its token lives in the file it was derived from. Reading only the
+        // store reported the token as configured on `env status` while every consumer that
+        // asked for it got `undefined`.
+        if (this.readWorkspaceConfigFile().environments.length === 0) {
+            const envFile = this.readEnvFileEnvironment();
+            if (envFile) {
+                // Throws when the caller named something else, as every other read does.
+                this.resolveEnvironment(environmentNameOrId);
+                return envFile.mcpToken;
+            }
+        }
         const environment = environmentNameOrId
             ? this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId)
             : this.resolveEnvironment().environment;
