@@ -248,11 +248,12 @@ ${interfaceBody}
             gatedParams: string[];
             aiConnectionType: string | null;
         }>;
-    }, opts: { maxDesc?: number; maxEnum?: number; maxRequired?: number; maxGating?: number } = {}): string {
+    }, opts: { maxDesc?: number; maxEnum?: number; maxRequired?: number; maxGating?: number; maxShape?: number } = {}): string {
         const maxDesc = opts.maxDesc ?? 300;
         const maxEnum = opts.maxEnum ?? 10;
         const maxRequired = opts.maxRequired ?? 15;
         const maxGating = opts.maxGating ?? 10;
+        const maxShape = opts.maxShape ?? 240;
         const latestVersion = Array.isArray(schema.version)
             ? Math.max(...schema.version)
             : schema.version;
@@ -260,15 +261,36 @@ ${interfaceBody}
         const lines: string[] = [];
         lines.push(`// ${schema.displayName} (${schema.type} v${latestVersion})`);
         if (desc) lines.push(`// ${desc}`);
+        const allProps = (schema.properties || []) as any[];
         const seenRequired = new Set<string>();
         const required: string[] = [];
-        for (const p of (schema.properties || []) as any[]) {
+        const ENUM_TYPES = new Set(['options', 'multioptions']);
+        const STRUCTURED_TYPES = new Set(['resourcelocator', 'resourcemapper', 'fixedcollection', 'collection']);
+
+        for (const p of allProps) {
             if (!p.required || p.type?.toLowerCase() === 'notice' || seenRequired.has(p.name)) continue;
             seenRequired.add(p.name);
-            const enums = Array.isArray(p.options)
-                ? ` [${this.compactEnumList(p.options, maxEnum)}]`
-                : '';
-            required.push(`//   - ${p.name}: ${p.type}${enums}`);
+            const type = String(p.type || '').toLowerCase();
+
+            // Union across variants, as the discriminators do: reading one variant's
+            // options advertised a subset as the whole set, with no marker that the rest
+            // existed. And only enum types get a value list — a fixedCollection's
+            // `options` are sub-field groups, which read as allowed scalars in brackets.
+            if (ENUM_TYPES.has(type)) {
+                const values = this.unionOptionValues(allProps, p.name, latestVersion);
+                const enums = values.length > 0
+                    ? ` [${this.compactEnumList(values.map((value) => ({ value })), maxEnum)}]`
+                    : '';
+                required.push(`//   - ${p.name}: ${p.type}${enums}`);
+                continue;
+            }
+
+            // A bare type name is not enough to write one of these, but the full shape can
+            // run to thousands of characters and compact exists to be small — name the
+            // shape, cap it, and point at the projection that carries the rest.
+            required.push(STRUCTURED_TYPES.has(type)
+                ? `//   - ${p.name}: ${this.truncate(this.mapTypeToTypeScript(p), maxShape)}`
+                : `//   - ${p.name}: ${p.type}`);
         }
         if (required.length > 0) {
             lines.push(`// required:`);
@@ -280,32 +302,33 @@ ${interfaceBody}
         // The discriminators an author actually needs. Without them compact is a search
         // result rather than a schema: a builder reported paying a second full lookup per
         // node because the snippet body was an empty placeholder.
-        const allProps = (schema.properties || []) as any[];
-        const resources = this.unionOptionValues(allProps, 'resource');
-        const operationsByResource = this.operationsByResource(allProps);
+        const resources = this.unionOptionValues(allProps, 'resource', latestVersion);
+        const operationGroups = this.operationGroups(allProps, latestVersion, new Set(resources));
 
         if (resources.length > 0) {
             lines.push(`// resource: ${this.compactEnumList(resources.map((value) => ({ value })), maxEnum)}`);
         }
-        if (operationsByResource.size > 0) {
-            const grouped = [...operationsByResource.entries()];
-            lines.push(grouped.length === 1 && grouped[0][0] === '*'
-                ? `// operation: ${this.compactEnumList(grouped[0][1].map((value) => ({ value })), maxEnum)}`
-                : `// operation, by resource:`);
-            if (grouped.length > 1 || grouped[0][0] !== '*') {
-                for (const [resource, operations] of grouped.slice(0, maxGating)) {
-                    lines.push(`//   ${resource}: ${this.compactEnumList(operations.map((value) => ({ value })), maxEnum)}`);
+        if (operationGroups.length > 0) {
+            const enumOf = (values: string[]) => this.compactEnumList(values.map((value) => ({ value })), maxEnum);
+            const ungrouped = operationGroups.length === 1 && operationGroups[0].label === '*';
+            if (ungrouped) {
+                lines.push(`// operation: ${enumOf(operationGroups[0].operations)}`);
+            } else {
+                lines.push(`// operation, by resource:`);
+                for (const group of operationGroups.slice(0, maxGating)) {
+                    lines.push(`//   ${group.label}: ${enumOf(group.operations)}`);
                 }
-                if (grouped.length > maxGating) {
-                    lines.push(`//   ... (+${grouped.length - maxGating} more resources)`);
+                if (operationGroups.length > maxGating) {
+                    lines.push(`//   ... (+${operationGroups.length - maxGating} more — see node-info --json)`);
                 }
             }
         }
 
         const firstResource = resources[0];
-        const firstOperation = firstResource
-            ? (operationsByResource.get(firstResource) ?? [])[0]
-            : (operationsByResource.get('*') ?? [])[0];
+        // The snippet is emitted verbatim, so prefer a pair with no gate beyond `resource`:
+        // a gated one needs a parameter the snippet does not carry and would not validate.
+        const candidates = operationGroups.filter((g) => g.resource === (firstResource ?? '*'));
+        const firstOperation = (candidates.find((g) => g.label === g.resource) ?? candidates[0])?.operations[0];
         const discriminators = [
             firstResource ? `  resource: '${firstResource}',` : undefined,
             firstOperation ? `  operation: '${firstOperation}',` : undefined,
@@ -343,10 +366,11 @@ ${interfaceBody}
      * set — compact told an agent `gmail` could only `create|delete|get|getAll`, hiding
      * `send`, and it picked a wrong operation on that basis.
      */
-    private static unionOptionValues(allProps: any[], name: string): string[] {
+    private static unionOptionValues(allProps: any[], name: string, version?: number): string[] {
         const seen = new Set<string>();
         for (const prop of allProps) {
             if (prop.name !== name || !Array.isArray(prop.options)) continue;
+            if (version !== undefined && !this.matchesVersion(prop.displayOptions?.show?.['@version'], version)) continue;
             for (const option of prop.options) {
                 const value = option?.value ?? option?.name;
                 if (value !== undefined) seen.add(String(value));
@@ -355,24 +379,71 @@ ${interfaceBody}
         return [...seen];
     }
 
-    /** Operations grouped by the resource that gates them, so a caller can pick a valid pair. */
-    private static operationsByResource(allProps: any[]): Map<string, string[]> {
-        const byResource = new Map<string, string[]>();
+    /**
+     * Operations grouped by the conditions that make them reachable.
+     *
+     * The validator decides an `operation` variant applies by evaluating every key of its
+     * `displayOptions.show`, so grouping on `resource` alone advertised pairs it rejects:
+     * variants belonging to another node version, and variants that additionally require
+     * `source` or `authentication` to be set. Both are kept honest here rather than
+     * dropped — a gated pair is valid once its gate is named.
+     */
+    private static operationGroups(
+        allProps: any[],
+        version: number,
+        knownResources: Set<string>,
+    ): Array<{ resource: string; label: string; operations: string[] }> {
+        const groups = new Map<string, { resource: string; label: string; operations: string[] }>();
+
         for (const prop of allProps) {
             if (prop.name !== 'operation' || !Array.isArray(prop.options)) continue;
-            const resources: string[] = prop.displayOptions?.show?.resource ?? ['*'];
-            const values = prop.options
-                .map((o: any) => o?.value ?? o?.name)
-                .filter((v: unknown) => v !== undefined)
-                .map(String);
+            const show: Record<string, unknown> = prop.displayOptions?.show ?? {};
+            if (!this.matchesVersion(show['@version'], version)) continue;
+
+            const resources = Array.isArray(show.resource) ? show.resource.map(String) : ['*'];
+            const gates = Object.entries(show)
+                .filter(([key]) => key !== 'resource' && key !== '@version')
+                .map(([key, values]) => `${key}=${(Array.isArray(values) ? values : [values]).join('|')}`);
+
             for (const resource of resources) {
-                byResource.set(String(resource), [
-                    ...(byResource.get(String(resource)) ?? []),
-                    ...values,
-                ]);
+                // A resource the node's own enum does not carry is not a pair anyone can
+                // write: the value is rejected before the operation is ever looked at.
+                if (resource !== '*' && knownResources.size > 0 && !knownResources.has(resource)) continue;
+                const label = gates.length > 0 ? `${resource} (${gates.join(', ')})` : resource;
+                const group = groups.get(label) ?? { resource, label, operations: [] };
+                for (const option of prop.options) {
+                    const value = option?.value ?? option?.name;
+                    if (value === undefined) continue;
+                    if (!group.operations.includes(String(value))) group.operations.push(String(value));
+                }
+                groups.set(label, group);
             }
         }
-        return byResource;
+        return [...groups.values()];
+    }
+
+    /**
+     * Evaluate a `displayOptions.show['@version']` condition: a list of plain versions, or
+     * of `{ _cnd: { gte: 1.1 } }` comparators. Absent condition means every version.
+     */
+    private static matchesVersion(condition: unknown, version: number): boolean {
+        if (!Array.isArray(condition)) return true;
+        return condition.some((entry: any) => {
+            const cnd = entry?._cnd;
+            if (!cnd) return Number(entry) === version;
+            return Object.entries(cnd).every(([operator, value]: [string, any]) => {
+                switch (operator) {
+                    case 'eq': return version === value;
+                    case 'not': return version !== value;
+                    case 'gt': return version > value;
+                    case 'gte': return version >= value;
+                    case 'lt': return version < value;
+                    case 'lte': return version <= value;
+                    case 'between': return version >= value?.from && version <= value?.to;
+                    default: return true;
+                }
+            });
+        });
     }
 
     private static compactEnumList(options: any[], max: number): string {
