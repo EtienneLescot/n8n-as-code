@@ -98,7 +98,7 @@ function inferFastCliCommand(projectRoot: string): string | undefined {
         return `node ${quoteShellArg(entrypoint)}`;
     }
 
-    // `npx --yes n8nac@<tag>` costs ~2s per call; an installed binary costs ~1s.
+    // Prefer the installed binary: npx pays npm's own startup on every invocation.
     return isN8nacOnShellPath() ? 'n8nac' : undefined;
 }
 

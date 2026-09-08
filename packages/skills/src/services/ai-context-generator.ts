@@ -209,13 +209,14 @@ export class AiContextGenerator {
   ): string {
     const { cliCmd, skillsCmd, source } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
     const managerCmd = resolveN8nManagerCommand(distTag, options.managerCommandOverride, process.env);
-    // `npx` costs ~3.4s of npm overhead per invocation before any work starts. It is a fixed
-    // cost: measured the same for a 100KB zero-dependency package, and no npx flag reduces it.
+    // npx pays npm's own startup on every invocation before any work starts. The cost is
+    // fixed rather than proportional to the package, and no npx flag avoids it, so the
+    // advice is to install once. Deliberately unquantified: the figure is machine-specific.
     // Only shown when we actually fell back to the published npx form.
     const installOnce = source === 'published'
       ? [
         ``,
-        `> Every \`npx\` call above pays ~3.4s of npm overhead before doing any work. That cost is`,
+        `> Every \`npx\` call above pays npm's own startup before doing any work. That cost is`,
         `> fixed, independent of the package, and no npx flag avoids it. Installing once removes it`,
         `> from every later command:`,
         `>`,

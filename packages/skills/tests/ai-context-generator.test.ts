@@ -236,7 +236,7 @@ describe('AiContextGenerator', () => {
 
             expect(agentsContent).toContain('npx --yes n8nac@next');
             expect(agentsContent).toContain('npm i -g n8nac@next');
-            expect(agentsContent).toContain('~3.4s of npm overhead');
+            expect(agentsContent).toContain("npm's own startup");
         });
 
         it('omits the install recommendation when the command is already direct', () => {

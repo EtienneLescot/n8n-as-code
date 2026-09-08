@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { join } from 'path';
 import type {
     CustomNodesResolution,
@@ -63,12 +63,13 @@ export class N8nAsCodeMcpService {
     // Local knowledge services, loaded once and kept warm for the life of the server.
     // Per-service rather than one bundle: a node lookup must not pay for the workflow
     // example index, and only the validator drags in ts-morph.
-    private customNodes?: Promise<CustomNodesResolution>;
     private provider?: Promise<NodeSchemaProvider>;
     private knowledge?: Promise<KnowledgeSearch>;
     private registry?: Promise<WorkflowRegistry>;
     private validator?: Promise<WorkflowValidator>;
     private assetsDir?: string;
+    private providerKey?: string;
+    private validatorKey?: string;
 
     constructor(options: N8nAsCodeMcpServiceOptions = {}) {
         this.cwd = options.cwd || process.cwd();
@@ -161,22 +162,38 @@ export class N8nAsCodeMcpService {
      * Resolved against this service's cwd, not the process cwd. The spawn path used to get
      * this right by accident, by passing `cwd` to the child process.
      */
-    private getCustomNodes(): Promise<CustomNodesResolution> {
-        if (!this.customNodes) {
-            this.customNodes = import('@n8n-as-code/skills')
-                .then(({ resolveCustomNodesConfig }) => resolveCustomNodesConfig(this.cwd));
+    /**
+     * Identity of the current custom-nodes file, so a resident server notices edits.
+     *
+     * The server outlives the files it reads: in an editor it can run for days while
+     * `n8nac-custom-nodes.json` is added or changed. Memoizing the provider forever made
+     * those edits invisible until restart.
+     */
+    private customNodesFingerprint(resolvedPath?: string): string {
+        if (!resolvedPath) return 'none';
+        try {
+            const stat = statSync(resolvedPath);
+            return `${resolvedPath}:${stat.mtimeMs}:${stat.size}`;
+        } catch {
+            return `${resolvedPath}:missing`;
         }
-        return this.customNodes;
     }
 
-    private getProvider(): Promise<NodeSchemaProvider> {
-        if (!this.provider) {
-            this.provider = Promise.all([
-                import('@n8n-as-code/skills'),
-                this.getAssetsDir(),
-                this.getCustomNodes(),
-            ]).then(([{ NodeSchemaProvider }, assetsDir, customNodes]) =>
-                new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodes.resolvedPath));
+    /** Cheap: reads one small JSON, so it is re-read per call rather than memoized. */
+    private async getCustomNodes(): Promise<CustomNodesResolution> {
+        const { resolveCustomNodesConfig } = await import('@n8n-as-code/skills');
+        return resolveCustomNodesConfig(this.cwd);
+    }
+
+    private async getProvider(): Promise<NodeSchemaProvider> {
+        const customNodes = await this.getCustomNodes();
+        const key = this.customNodesFingerprint(customNodes.resolvedPath);
+
+        if (!this.provider || this.providerKey !== key) {
+            this.providerKey = key;
+            this.provider = Promise.all([import('@n8n-as-code/skills'), this.getAssetsDir()])
+                .then(([{ NodeSchemaProvider }, assetsDir]) =>
+                    new NodeSchemaProvider(join(assetsDir, 'n8n-nodes-technical.json'), customNodes.resolvedPath));
         }
         return this.provider;
     }
@@ -205,14 +222,15 @@ export class N8nAsCodeMcpService {
         return this.registry;
     }
 
-    private getValidator(): Promise<WorkflowValidator> {
-        if (!this.validator) {
-            this.validator = Promise.all([
-                import('@n8n-as-code/skills'),
-                this.getAssetsDir(),
-                this.getCustomNodes(),
-            ]).then(([{ WorkflowValidator }, assetsDir, customNodes]) =>
-                new WorkflowValidator(join(assetsDir, 'n8n-nodes-technical.json'), customNodes.resolvedPath));
+    private async getValidator(): Promise<WorkflowValidator> {
+        const customNodes = await this.getCustomNodes();
+        const key = this.customNodesFingerprint(customNodes.resolvedPath);
+
+        if (!this.validator || this.validatorKey !== key) {
+            this.validatorKey = key;
+            this.validator = Promise.all([import('@n8n-as-code/skills'), this.getAssetsDir()])
+                .then(([{ WorkflowValidator }, assetsDir]) =>
+                    new WorkflowValidator(join(assetsDir, 'n8n-nodes-technical.json'), customNodes.resolvedPath));
         }
         return this.validator;
     }
@@ -249,43 +267,59 @@ export class N8nAsCodeMcpService {
     /**
      * One node or several, full schema or the CLI's compact projection.
      *
-     * Compact matters: the full schema for `gmail` is ~127KB against ~0.4KB compact, and
+     * Compact matters: the full schema for `gmail` is ~127KB against ~0.5KB compact, and
      * an agent given only the full projection will reach for the CLI instead.
+     *
+     * The batch form always answers `{ nodes, notFound, inexactMatches }`. Returning only
+     * what resolved would let a typo look like a node with no parameters, and a fuzzy hit
+     * look like confirmation that the name was right. The single-name form keeps its
+     * original shape.
      */
     async getNodeInfo(name: string | string[], options: { compact?: boolean } = {}) {
-        const names = Array.isArray(name) ? name : [name];
+        const batch = Array.isArray(name);
+        const names = batch ? name : [name];
         const { resolveNode, TypeScriptFormatter } = await import('@n8n-as-code/skills');
         const provider = await this.getProvider();
 
         const found: any[] = [];
-        const missing: string[] = [];
+        const notFound: string[] = [];
+        const inexactMatches: Array<{ requested: string; resolvedTo: string }> = [];
+
         for (const candidate of names) {
-            const schema = resolveNode(provider, candidate);
-            if (schema) found.push(schema);
-            else missing.push(candidate);
+            const resolution = resolveNode(provider, candidate);
+            if (!resolution) {
+                notFound.push(candidate);
+                continue;
+            }
+            if (!resolution.exact) {
+                inexactMatches.push({ requested: candidate, resolvedTo: resolution.matchedName });
+            }
+            found.push(resolution.schema);
         }
 
         if (found.length === 0) {
-            throw new Error(`Node '${missing.join("', '")}' not found.`);
+            throw new Error(`Node '${notFound.join("', '")}' not found.`);
         }
+
+        const render = (schema: any) => TypeScriptFormatter.generateCompactNodeDoc({
+            name: schema.name,
+            type: schema.type,
+            displayName: schema.displayName,
+            description: schema.description,
+            version: schema.version,
+            properties: schema.schema?.properties || [],
+            parameterGating: schema.parameterGating,
+        });
 
         if (options.compact) {
-            // Same projection the CLI's --compact emits: identity, required params with
-            // their enums, a minimal snippet, and the parameter gating flags.
-            return found
-                .map((schema) => TypeScriptFormatter.generateCompactNodeDoc({
-                    name: schema.name,
-                    type: schema.type,
-                    displayName: schema.displayName,
-                    description: schema.description,
-                    version: schema.version,
-                    properties: schema.schema?.properties || [],
-                    parameterGating: schema.parameterGating,
-                }))
-                .join('\n\n');
+            const notes = [
+                ...inexactMatches.map((m) => `// note: '${m.requested}' resolved to '${m.resolvedTo}'`),
+                ...(notFound.length > 0 ? [`// not found: ${notFound.join(', ')}`] : []),
+            ];
+            return [...notes, ...found.map(render)].join('\n\n');
         }
 
-        return Array.isArray(name) ? found : found[0];
+        return batch ? { nodes: found, notFound, inexactMatches } : found[0];
     }
 
     async searchDocs(query: string, options: {

@@ -503,17 +503,32 @@ export class NodeSchemaProvider {
     }
 }
 
+export interface NodeResolution {
+    schema: any;
+    /** The node's real name, which differs from the query when it was matched by search. */
+    matchedName: string;
+    /** False when the query only matched through search, so callers can say so. */
+    exact: boolean;
+}
+
 /**
  * Resolve a node by name the way the CLI does: an exact match first, then a single
  * high-confidence fuzzy hit. Shared so `n8nac skills node-info` and the MCP server's
  * `get_n8n_node_info` cannot drift apart on what counts as a match.
+ *
+ * Reports whether the match was exact: a fuzzy hit can land on a different node than the
+ * caller meant, and silently returning it reads as confirmation that the name was right.
  */
-export function resolveNode(provider: NodeSchemaProvider, name: string): any {
+export function resolveNode(provider: NodeSchemaProvider, name: string): NodeResolution | undefined {
     const exact = provider.getNodeSchema(name);
-    if (exact) return exact;
+    if (exact) return { schema: exact, matchedName: name, exact: true };
+
     const [best] = provider.searchNodes(name, 1);
     if (best && ((best.relevanceScore || 0) > 80 || best.name.toLowerCase() === name.toLowerCase())) {
-        return provider.getNodeSchema(best.name);
+        const schema = provider.getNodeSchema(best.name);
+        if (schema) {
+            return { schema, matchedName: best.name, exact: best.name.toLowerCase() === name.toLowerCase() };
+        }
     }
     return undefined;
 }

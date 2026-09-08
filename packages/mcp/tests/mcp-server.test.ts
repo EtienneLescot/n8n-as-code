@@ -47,10 +47,26 @@ describe('N8nAsCodeMcpService', () => {
     });
 
     test('looks up several nodes in one call', async () => {
-        const nodes: any = await service.getNodeInfo(['gmail', 'httpRequest']);
+        const result: any = await service.getNodeInfo(['gmail', 'httpRequest']);
 
-        expect(Array.isArray(nodes)).toBe(true);
-        expect(nodes.map((n: any) => n.name).sort()).toEqual(['gmail', 'httpRequest']);
+        expect(result.nodes.map((n: any) => n.name).sort()).toEqual(['gmail', 'httpRequest']);
+        expect(result.notFound).toEqual([]);
+        expect(result.inexactMatches).toEqual([]);
+    });
+
+    test('a batch reports the names it could not resolve rather than dropping them', async () => {
+        // Returning only what resolved lets a typo look like a node with no parameters.
+        const result: any = await service.getNodeInfo(['gmail', 'definitelyNotANode']);
+
+        expect(result.nodes).toHaveLength(1);
+        expect(result.notFound).toEqual(['definitelyNotANode']);
+    });
+
+    test('a compact batch carries the misses as a comment line', async () => {
+        const compact: any = await service.getNodeInfo(['gmail', 'definitelyNotANode'], { compact: true });
+
+        expect(compact).toContain('// not found: definitelyNotANode');
+        expect(compact).toContain('n8n-nodes-base.gmail');
     });
 
     test('compact returns a bounded projection, not the full schema', async () => {

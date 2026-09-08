@@ -183,7 +183,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     const getRegistry = async (): Promise<WorkflowRegistry> => {
         if (!registry) {
             const { WorkflowRegistry } = await import('../services/workflow-registry.js');
-            registry = new WorkflowRegistry();
+            registry = new WorkflowRegistry(join(assetsDir, 'workflows-index.json'));
         }
         return registry;
     };
@@ -343,19 +343,37 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     });
 
 
-    /** Renders one or more nodes; exits 1 only when nothing at all resolved. */
+    /**
+     * Renders one or more nodes.
+     *
+     * A name that does not resolve is reported and sets a failing exit code even when
+     * others succeeded: `node-info a b typo` printing two schemas and exiting 0 passes
+     * silently through `set -e` and `&&`. A fuzzy match is announced for the same reason,
+     * since it can land on a different node than the caller meant.
+     */
     const emitNodes = async (names: string[], options: any, render: NodeRenderers, hint?: (name: string) => void) => {
         const provider = await getProvider();
         const found: any[] = [];
+        let missing = 0;
 
         for (const name of names) {
-            const schema = resolveNode(provider, name);
-            if (schema) found.push(schema);
-            else console.error(chalk.red(`Node '${name}' not found.`));
+            const resolution = resolveNode(provider, name);
+            if (!resolution) {
+                console.error(chalk.red(`Node '${name}' not found.`));
+                missing++;
+                continue;
+            }
+            if (!resolution.exact) {
+                console.error(chalk.yellow(`Note: '${name}' resolved to '${resolution.matchedName}'.`));
+            }
+            found.push(resolution.schema);
         }
 
         if (found.length === 0) {
             process.exit(1);
+        }
+        if (missing > 0) {
+            process.exitCode = 1;
         }
 
         if (options.json) {
