@@ -64,7 +64,9 @@ const searchKnowledgeSchema = {
 };
 
 const getNodeInfoSchema = {
-    name: z.string().min(1).describe('Exact or close node name, for example "googleSheets" or "n8n-nodes-base.httpRequest".'),
+    name: z.string().min(1).optional().describe('Exact or close node name, for example "googleSheets" or "n8n-nodes-base.httpRequest".'),
+    names: z.array(z.string().min(1)).min(1).max(25).optional().describe('Several node names to look up in one call. Prefer this over one call per node.'),
+    compact: z.boolean().optional().describe('Return the bounded projection — identity, required parameters with their enums, a minimal snippet and the parameter gating flags — instead of the full schema. Two orders of magnitude smaller; prefer it unless you need a parameter the compact view omits.'),
 };
 
 const searchExamplesSchema = {
@@ -272,13 +274,21 @@ function buildMcpServer(service: N8nAsCodeMcpService, telemetry: TelemetryClient
 
     s.tool(
         'get_n8n_node_info',
-        'Get the full offline schema and metadata for a specific n8n node.',
+        'Get the offline schema and metadata for one or more n8n nodes. Pass `names` for several in one call, and `compact` for a bounded projection.',
         getNodeInfoSchema,
         localReadOnlyHints,
-        trackTool('get_n8n_node_info', async ({ name }: { name: string }) => {
+        trackTool('get_n8n_node_info', async ({ name, names, compact }: { name?: string; names?: string[]; compact?: boolean }) => {
             try {
+                const target = names ?? name;
+                if (!target) {
+                    return {
+                        isError: true,
+                        content: [{ type: 'text' as const, text: 'Provide either `name` or `names`.' }],
+                    };
+                }
+                const result = await service.getNodeInfo(target, { compact });
                 return {
-                    content: [{ type: 'text' as const, text: asJsonText(await service.getNodeInfo(name)) }],
+                    content: [{ type: 'text' as const, text: typeof result === 'string' ? result : asJsonText(result) }],
                 };
             } catch (error: any) {
                 return {

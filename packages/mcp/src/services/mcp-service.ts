@@ -246,13 +246,46 @@ export class N8nAsCodeMcpService {
         });
     }
 
-    async getNodeInfo(name: string) {
-        const { resolveNode } = await import('@n8n-as-code/skills');
-        const schema = resolveNode(await this.getProvider(), name);
-        if (!schema) {
-            throw new Error(`Node '${name}' not found.`);
+    /**
+     * One node or several, full schema or the CLI's compact projection.
+     *
+     * Compact matters: the full schema for `gmail` is ~127KB against ~0.4KB compact, and
+     * an agent given only the full projection will reach for the CLI instead.
+     */
+    async getNodeInfo(name: string | string[], options: { compact?: boolean } = {}) {
+        const names = Array.isArray(name) ? name : [name];
+        const { resolveNode, TypeScriptFormatter } = await import('@n8n-as-code/skills');
+        const provider = await this.getProvider();
+
+        const found: any[] = [];
+        const missing: string[] = [];
+        for (const candidate of names) {
+            const schema = resolveNode(provider, candidate);
+            if (schema) found.push(schema);
+            else missing.push(candidate);
         }
-        return schema;
+
+        if (found.length === 0) {
+            throw new Error(`Node '${missing.join("', '")}' not found.`);
+        }
+
+        if (options.compact) {
+            // Same projection the CLI's --compact emits: identity, required params with
+            // their enums, a minimal snippet, and the parameter gating flags.
+            return found
+                .map((schema) => TypeScriptFormatter.generateCompactNodeDoc({
+                    name: schema.name,
+                    type: schema.type,
+                    displayName: schema.displayName,
+                    description: schema.description,
+                    version: schema.version,
+                    properties: schema.schema?.properties || [],
+                    parameterGating: schema.parameterGating,
+                }))
+                .join('\n\n');
+        }
+
+        return Array.isArray(name) ? found : found[0];
     }
 
     async searchDocs(query: string, options: {

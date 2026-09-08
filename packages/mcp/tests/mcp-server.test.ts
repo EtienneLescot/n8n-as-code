@@ -46,6 +46,37 @@ describe('N8nAsCodeMcpService', () => {
         expect(node.type).toBe('n8n-nodes-base.gmail');
     });
 
+    test('looks up several nodes in one call', async () => {
+        const nodes: any = await service.getNodeInfo(['gmail', 'httpRequest']);
+
+        expect(Array.isArray(nodes)).toBe(true);
+        expect(nodes.map((n: any) => n.name).sort()).toEqual(['gmail', 'httpRequest']);
+    });
+
+    test('compact returns a bounded projection, not the full schema', async () => {
+        const full: any = await service.getNodeInfo('gmail');
+        const compact: any = await service.getNodeInfo('gmail', { compact: true });
+
+        expect(typeof compact).toBe('string');
+        expect(compact).toContain('n8n-nodes-base.gmail');
+        expect(compact.length).toBeLessThan(JSON.stringify(full).length);
+        // Bounded regardless of node size. The fixture nodes are small; against the real
+        // ontology this is the difference between ~0.4KB and ~127KB for gmail.
+        expect(compact.length).toBeLessThan(4000);
+    });
+
+    test('compact joins several nodes into one document', async () => {
+        const compact: any = await service.getNodeInfo(['gmail', 'httpRequest'], { compact: true });
+
+        expect(compact).toContain('n8n-nodes-base.gmail');
+        expect(compact).toContain('n8n-nodes-base.httpRequest');
+    });
+
+    test('reports every missing name when none of them resolve', async () => {
+        await expect(service.getNodeInfo(['nopeOne', 'nopeTwo']))
+            .rejects.toThrow("Node 'nopeOne', 'nopeTwo' not found.");
+    });
+
     test('resolves a node through the same fuzzy match the CLI uses', async () => {
         const node: any = await service.getNodeInfo('Gmail');
 
