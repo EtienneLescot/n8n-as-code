@@ -894,7 +894,10 @@ environmentProgram.command('status')
         }
     });
 
-hideCommand(program.command('setup'))
+// Listed deliberately. It was hidden from the day the helper was written, but the helper
+// never worked, so nobody had seen the index without it until now: two of three probe
+// agents then hunted for an `init` or `setup` entry point and did not find one.
+program.command('setup')
     .description('Choose how this facade should use n8n runtime capabilities. A workspace .env holding N8N_HOST (and optionally N8N_API_KEY) is picked up on its own, so --host and --api-key are only needed when there is none.')
     .option('--mode <mode>', 'managed-local, connect-existing, or generation-only', 'connect-existing')
     .option('--host <url>', 'Existing n8n URL for connect-existing mode')
