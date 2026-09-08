@@ -882,8 +882,23 @@ hideCommand(program.command('setup'))
         // nothing is configured, point at the single command that finishes
         // the job instead of leaving a silent dead end.
         let setupNextSteps: string[] = [];
+        let resolvedEnvironmentLine: string | undefined;
         try {
-            if (new (await load.config()).ConfigService().listEnvironments().length === 0) {
+            const setupConfigService = new (await load.config()).ConfigService();
+            // "None listed" no longer means "none available": a workspace `.env` makes an
+            // environment derivable without any command, so ask whether one resolves rather
+            // than whether one has already been written to disk.
+            let environment;
+            try {
+                environment = setupConfigService.resolveEnvironment();
+            } catch {
+                environment = undefined;
+            }
+
+            if (environment) {
+                resolvedEnvironmentLine = `Workspace environment: ${environment.environmentName} -> ${environment.host}`
+                    + (environment.apiKeyAvailable ? '' : ' (no API key yet)');
+            } else if (setupConfigService.listEnvironments().length === 0) {
                 // Managed local instances attach via --managed-instance and
                 // reject API keys — printing the base-url variant there sends
                 // agents into a guaranteed validation error.
@@ -905,13 +920,17 @@ hideCommand(program.command('setup'))
         }
         printJsonOrText(
             options,
-            setupNextSteps.length > 0
-                ? { instance, modes: facade.listSetupModes(), nextSteps: setupNextSteps }
-                : { instance, modes: facade.listSetupModes() },
+            {
+                instance,
+                modes: facade.listSetupModes(),
+                ...(resolvedEnvironmentLine ? { workspaceEnvironment: resolvedEnvironmentLine } : {}),
+                ...(setupNextSteps.length > 0 ? { nextSteps: setupNextSteps } : {}),
+            },
             [
                 chalk.green('✅ n8n facade setup mode saved.'),
                 `Mode: ${instance.mode}`,
                 instance.baseUrl ? `n8n host: ${instance.baseUrl}` : undefined,
+                resolvedEnvironmentLine ? chalk.green(resolvedEnvironmentLine) : undefined,
                 setupNextSteps.length > 0 ? chalk.yellow(`\n${setupNextSteps.join('\n')}`) : undefined,
             ].filter(Boolean).join('\n'),
         );

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
@@ -51,6 +53,34 @@ describe('CLI command surface', () => {
             expect(() => runCli([command, '--help'])).not.toThrow();
         }
     }, INTEGRATION_TIMEOUT * 4);
+
+    it('reports the environment a workspace .env already resolves, instead of denying it', () => {
+        // `setup` used to ask "is an environment listed on disk?", which a workspace `.env`
+        // makes the wrong question: it printed "No workspace environment configured yet"
+        // right after one had become available, and its suggested `env add` then failed
+        // with "already exists".
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-setup-'));
+        try {
+            fs.writeFileSync(
+                path.join(dir, '.env'),
+                'N8N_HOST=https://setup-probe.example.test\nN8N_API_KEY=probe-key\n',
+                'utf8',
+            );
+
+            const out = execFileSync('node', [cliEntry, 'setup', '--mode', 'connect-existing',
+                '--host', 'https://setup-probe.example.test', '--json'], {
+                cwd: dir,
+                env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' },
+                encoding: 'utf8',
+            });
+
+            const parsed = JSON.parse(out);
+            expect(parsed.workspaceEnvironment).toContain('https://setup-probe.example.test');
+            expect(parsed.nextSteps).toBeUndefined();
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    }, INTEGRATION_TIMEOUT);
 
     it('prints a version without loading a command module', () => {
         expect(runCli(['--version']).trim()).toMatch(/^\d+\.\d+\.\d+/);
