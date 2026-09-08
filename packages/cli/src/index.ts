@@ -866,10 +866,21 @@ hideCommand(program.command('setup'))
         let setupNextSteps: string[] = [];
         try {
             if (new ConfigService().listEnvironments().length === 0) {
-                setupNextSteps = [
-                    'No workspace environment configured yet — create one to sync workflows:',
-                    'n8nac env add <name> --base-url <url> --workflows-path workflows/<name> --api-key-stdin --pin',
-                ];
+                // Managed local instances attach via --managed-instance and
+                // reject API keys — printing the base-url variant there sends
+                // agents into a guaranteed validation error.
+                const setupInstance = instance as { mode?: string; id?: string };
+                if (setupInstance?.mode === 'managed-local-docker' && setupInstance?.id) {
+                    setupNextSteps = [
+                        'No workspace environment configured yet — attach this managed instance:',
+                        `n8nac env add Local --managed-instance ${setupInstance.id} --workflows-path workflows/local --pin`,
+                    ];
+                } else {
+                    setupNextSteps = [
+                        'No workspace environment configured yet — create one to sync workflows:',
+                        'n8nac env add <name> --base-url <url> --workflows-path workflows/<name> --api-key-stdin --pin',
+                    ];
+                }
             }
         } catch {
             // Never break setup output on environment inspection failure.
