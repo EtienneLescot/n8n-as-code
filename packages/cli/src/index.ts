@@ -1602,9 +1602,10 @@ credentialCmd
 // skills - AI knowledge tools subcommand group
 const skillsCmd = registerSkillsPlaceholder(program);
 
-// Registered inline rather than by `new UpdateAiCommand(program)`: its constructor is what
-// registers the command, so constructing it eagerly would pull the whole update-ai graph
-// into every invocation. Keep this option list in sync with UpdateAiCommand's constructor.
+// The only command registered by hand. UpdateAiCommand used to register itself from its
+// constructor, which meant constructing it eagerly just to expose the command, pulling the
+// whole update-ai graph into every invocation. The constructor no longer registers
+// anything, so this is the single source of truth for the command's option list.
 program.command('update-ai')
     .description('Update AI Context (AGENTS.md and snippets)')
     .option('--n8n-version <version>', 'n8n instance version to write when API discovery is unavailable')

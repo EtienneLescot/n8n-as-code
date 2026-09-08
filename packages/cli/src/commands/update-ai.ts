@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import chalk from 'chalk';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
@@ -153,24 +152,6 @@ async function createAiContextGenerator(): Promise<AiContextGeneratorInstance> {
 }
 
 export class UpdateAiCommand {
-    /**
-     * `program` is optional: packages/cli/src/index.ts registers the command itself so the
-     * module can be loaded lazily. Passing a program keeps the original self-registering shape.
-     */
-    constructor(private program?: Command) {
-        if (!this.program) return;
-        this.program
-            .command('update-ai')
-            .description('Update AI Context (AGENTS.md and snippets)')
-            .option('--n8n-version <version>', 'n8n instance version to write when API discovery is unavailable')
-            .option('--cli-version <version>', 'n8nac CLI dist tag to use in generated AI context')
-            .option('--cli-cmd <command>', 'Override the generated n8nac command in AGENTS.md (for local dev builds)')
-            .option('--manager-cmd <command>', 'Override the generated n8n-manager command in AGENTS.md (for local dev builds)')
-            .option('--silent', 'Suppress all output (used for background refresh)')
-            .action(async (options) => {
-                await this.run(options);
-            });
-    }
 
     /**
      * Fire-and-forget check: if AGENTS.md is missing a version stamp or the stamped version
@@ -195,7 +176,7 @@ export class UpdateAiCommand {
                 if (currentLevel === undefined || stampedLevel === currentLevel) return;
             }
 
-            await new UpdateAiCommand(new Command()).run({ silent: true, projectRoot });
+            await new UpdateAiCommand().run({ silent: true, projectRoot });
         } catch {
             // Never surface background refresh errors to the user
         }

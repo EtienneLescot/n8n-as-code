@@ -82,6 +82,17 @@ describe('CLI command surface', () => {
         }
     }, INTEGRATION_TIMEOUT);
 
+    it("exposes the options of update-ai, the one command registered by hand", () => {
+        // Every other command carries its options with its implementation. update-ai is
+        // registered directly in index.ts so the module can load lazily, which makes its
+        // option list the one that can silently drift out of the CLI.
+        const help = runCli(['update-ai', '--help']);
+
+        for (const option of ['--n8n-version', '--cli-version', '--cli-cmd', '--manager-cmd', '--silent']) {
+            expect(help).toContain(option);
+        }
+    }, INTEGRATION_TIMEOUT);
+
     it('prints a version without loading a command module', () => {
         expect(runCli(['--version']).trim()).toMatch(/^\d+\.\d+\.\d+/);
     }, INTEGRATION_TIMEOUT);
