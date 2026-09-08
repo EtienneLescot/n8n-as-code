@@ -1699,14 +1699,14 @@ if (shouldLoadSkillsCommands(process.argv)) {
  * available and still documents itself through `n8nac <command> --help`; it is the index
  * that is trimmed, not the surface.
  *
- * The line is "occasional for every audience", not "human rather than agent": telemetry
- * opt-out, one-off format conversion, a cache refresh, an environment promotion, and
- * starting a server a plugin normally starts. Hiding what a human reaches for to make an
- * agent's index shorter would trade one audience for the other.
+ * The line is what the package README does not document: telemetry opt-out, the `find`
+ * and `fetch` conveniences, and starting a server a plugin normally starts. Commands the
+ * README teaches stay listed — an index that contradicts the documentation costs more
+ * than a long index, and a probe agent caught exactly that. Nor is the line "human rather
+ * than agent": hiding what a human reaches for to shorten an agent's index would trade
+ * one audience for the other.
  */
-const SECONDARY_COMMANDS = new Set([
-    'telemetry', 'credentials', 'find', 'fetch', 'promote', 'convert', 'convert-batch', 'mcp',
-]);
+const SECONDARY_COMMANDS = new Set(['telemetry', 'find', 'fetch', 'mcp']);
 for (const command of program.commands) {
     if (SECONDARY_COMMANDS.has(command.name())) hideCommand(command);
 }

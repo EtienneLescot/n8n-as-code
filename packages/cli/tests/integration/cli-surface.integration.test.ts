@@ -29,7 +29,7 @@ const TOP_LEVEL_COMMANDS = [
 
 /** The commands the top-level index is expected to show. */
 const LISTED_COMMANDS = TOP_LEVEL_COMMANDS.filter((c) => ![
-    'telemetry', 'credentials', 'find', 'fetch', 'promote', 'convert', 'convert-batch', 'mcp', 'setup', 'setup-modes',
+    'telemetry', 'find', 'fetch', 'mcp', 'setup', 'setup-modes',
 ].includes(c));
 
 function runCli(args: string[]): string {
@@ -104,13 +104,13 @@ describe('CLI command surface', () => {
         // grepped the compiled bundle to enumerate commands. Hidden commands are trimmed
         // from the index only: each still runs and still documents itself.
         const listed = listedCommands(runCli(['--help']));
-        const hidden = ['telemetry', 'credentials', 'find', 'fetch', 'promote', 'convert', 'convert-batch', 'mcp', 'setup', 'setup-modes'];
+        const hidden = ['telemetry', 'find', 'fetch', 'mcp', 'setup', 'setup-modes'];
 
         for (const command of hidden) {
             expect(listed).not.toContain(command);
             expect(() => runCli([command, '--help'])).not.toThrow();
         }
-        expect(listed.length).toBeLessThanOrEqual(18);
+        expect(listed.length).toBeLessThanOrEqual(20);
     }, INTEGRATION_TIMEOUT * 4);
 
     it('prints a version without loading a command module', () => {
