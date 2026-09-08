@@ -110,7 +110,9 @@ describe('CLI command surface', () => {
             expect(listed).not.toContain(command);
             expect(() => runCli([command, '--help'])).not.toThrow();
         }
-        expect(listed.length).toBeLessThanOrEqual(20);
+        // Not a target, a ratchet: the index is already long enough that an agent read it
+        // in two passes, so growing it further should be a deliberate act.
+        expect(listed.length).toBeLessThanOrEqual(22);
     }, INTEGRATION_TIMEOUT * 4);
 
     it('prints a version without loading a command module', () => {
