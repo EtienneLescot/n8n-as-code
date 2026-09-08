@@ -10,6 +10,20 @@ import inquirer from 'inquirer';
 
 export class SyncCommand extends BaseCommand {
 
+    /**
+     * Guards the level-0 validation notice: `push --verify` runs pushOne and
+     * verifyRemote on the same instance, and printing the same warning twice
+     * reads as two distinct problems (agents have tried to "fix" the second
+     * one by reconfiguring MCP mid-task). One notice per process is enough.
+     */
+    private levelNoticeShown = false;
+
+    private printLevelZeroNoticeOnce(): void {
+        if (this.levelNoticeShown) return;
+        this.levelNoticeShown = true;
+        console.log(chalk.dim(`   Validated against the bundled schema only (native MCP level 0 — discouraged, the instance may differ). Connect the instance MCP for instance-exact validation: n8nac native-mcp configure --level 1.`));
+    }
+
     async pullOne(workflowId: string): Promise<void> {
         const syncConfig = await this.getSyncConfig();
         const syncManager = new SyncManager(this.client, syncConfig);
@@ -152,7 +166,7 @@ export class SyncCommand extends BaseCommand {
             const finalWorkflowId = await syncManager.push(filename, { draft: options?.draft === true });
             spinner.succeed(chalk.green(`✔ Pushed workflow ${filename}.`));
             if (level === 0) {
-                console.log(chalk.dim(`   Validated against the bundled schema only (native MCP level 0 — discouraged, the instance may differ). Connect the instance MCP for instance-exact validation: n8nac native-mcp configure --level 1.`));
+                this.printLevelZeroNoticeOnce();
             }
             this.reportPublishState(publishReport, finalWorkflowId);
             return finalWorkflowId;
@@ -321,7 +335,7 @@ export class SyncCommand extends BaseCommand {
             console.log(chalk.dim('   Fix the issues locally, then push again.'));
         }
         if (effectiveNativeMcpLevel(this.activeEnvironment?.nativeMcp, process.env.N8NAC_NATIVE_MCP_LEVEL) === 0) {
-            console.log(chalk.dim('   Validated against the bundled schema only (native MCP level 0 — discouraged, the instance may differ). Connect the instance MCP for instance-exact validation: n8nac native-mcp configure --level 1.'));
+            this.printLevelZeroNoticeOnce();
         }
 
         return result.valid;

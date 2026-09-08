@@ -533,6 +533,7 @@ environmentProgram.command('add')
     .option('--folder-sync', 'Enable folder sync for this environment')
     .option('--custom-nodes-path <path>', 'Custom nodes path for this environment')
     .option('--description <text>', 'Environment description')
+    .option('--pin', 'Pin this environment as the workspace default in the same process (saves one cold start)')
     .option('--json', 'Output environment as JSON')
     .action(async (name, options) => {
         await hydrateApiKeyFromStdin(options);
@@ -579,7 +580,8 @@ environmentProgram.command('add')
         // so copying a per-environment credential into it lets one environment silently
         // authenticate as another (and the last `env add --api-key` would repoint them all).
         if (options.apiKey && urlOption) configService.saveWorkspaceEnvironmentApiKey(environment.id, options.apiKey);
-        printJsonOrText(options, environment, chalk.green(`✔ Workspace environment added: ${environment.name}`));
+        const added = options.pin ? configService.pinEnvironment(environment.id) : environment;
+        printJsonOrText(options, added, chalk.green(`✔ Workspace environment added: ${added.name}`));
     });
 
 environmentProgram.command('update')
@@ -856,13 +858,32 @@ hideCommand(program.command('setup'))
             throw error;
         }
 
+        // Bridge the facade/workspace gap: `setup` configures the runtime
+        // facade but creates no workspace environment, which strands fresh
+        // agents and users (setup exits 0, yet `env status` is empty). When
+        // nothing is configured, point at the single command that finishes
+        // the job instead of leaving a silent dead end.
+        let setupNextSteps: string[] = [];
+        try {
+            if (new ConfigService().listEnvironments().length === 0) {
+                setupNextSteps = [
+                    'No workspace environment configured yet — create one to sync workflows:',
+                    'n8nac env add <name> --base-url <url> --workflows-path workflows/<name> --api-key-stdin --pin',
+                ];
+            }
+        } catch {
+            // Never break setup output on environment inspection failure.
+        }
         printJsonOrText(
             options,
-            { instance, modes: facade.listSetupModes() },
+            setupNextSteps.length > 0
+                ? { instance, modes: facade.listSetupModes(), nextSteps: setupNextSteps }
+                : { instance, modes: facade.listSetupModes() },
             [
                 chalk.green('✅ n8n facade setup mode saved.'),
                 `Mode: ${instance.mode}`,
                 instance.baseUrl ? `n8n host: ${instance.baseUrl}` : undefined,
+                setupNextSteps.length > 0 ? chalk.yellow(`\n${setupNextSteps.join('\n')}`) : undefined,
             ].filter(Boolean).join('\n'),
         );
     });

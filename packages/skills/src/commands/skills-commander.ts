@@ -197,6 +197,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .option('--limit <limit>', 'Limit results', '10')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
+        .option('--compact', 'Compact projection: minimal snippets only, no docs or hints (token-efficient)')
         .action(async (query, options) => {
             try {
                 const customNodesConfig = await withCustomNodesWarnings();
@@ -224,7 +225,20 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 });
 
                 if (options.json) {
-                    console.log(JSON.stringify(results, null, 2));
+                    console.log(JSON.stringify(options.compact
+                        ? { results: results.results.slice(0, parseInt(options.limit)).map((r: any) => ({ name: r.name || r.id, type: r.id, displayName: r.displayName || r.title || r.name || '' })) }
+                        : results, null, 2));
+                } else if (options.compact) {
+                    const nodeResults = results.results.filter((r: any) => r.type === 'node');
+                    for (const r of nodeResults) {
+                        console.log(TypeScriptFormatter.generateMinimalSnippet({
+                            name: r.name || r.id,
+                            type: r.id,
+                            displayName: r.displayName || r.title || r.name || '',
+                            version: 1,
+                        }));
+                        console.log('');
+                    }
                 } else {
                     const nodeResults = results.results.filter((r: any) => r.type === 'node');
                     const docResults = results.results.filter((r: any) => r.type !== 'node');
@@ -251,11 +265,13 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                     }
                 }
 
-                printSearchCustomNodesNote(customNodesConfig, query, results.results.length);
+                if (!options.compact) {
+                    printSearchCustomNodesNote(customNodesConfig, query, results.results.length);
 
-                if (results.hints && results.hints.length > 0) {
-                    console.error(chalk.cyan('\n💡 Hints:'));
-                    results.hints.forEach((hint: string) => console.error(chalk.gray(`   ${hint}`)));
+                    if (results.hints && results.hints.length > 0) {
+                        console.error(chalk.cyan('\n💡 Hints:'));
+                        results.hints.forEach((hint: string) => console.error(chalk.gray(`   ${hint}`)));
+                    }
                 }
             } catch (error: any) {
                 console.error(chalk.red(error.message));
@@ -316,6 +332,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('<name>', 'Node name (exact, e.g. "googleSheets")')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
+        .option('--compact', 'Compact projection: identity + required params + snippet (token-efficient)')
         .action(async (name, options) => {
             try {
                 await withCustomNodesWarnings();
@@ -325,7 +342,26 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 const schema = provider.getNodeSchema(name);
                 if (schema) {
                     if (options.json) {
-                        console.log(JSON.stringify(schema, null, 2));
+                        console.log(JSON.stringify(options.compact
+                            ? {
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                requiredFields: [...new Set((schema.schema?.properties || []).filter((p: any) => p.required).map((p: any) => p.name))],
+                            }
+                            : schema, null, 2));
+                    } else if (options.compact) {
+                        console.log(TypeScriptFormatter.generateCompactNodeDoc({
+                            name: schema.name,
+                            type: schema.type,
+                            displayName: schema.displayName,
+                            description: schema.description,
+                            version: schema.version,
+                            properties: schema.schema?.properties || [],
+                            parameterGating: schema.parameterGating
+                        }));
                     } else {
                         const tsDoc = TypeScriptFormatter.generateCompleteNodeDoc({
                             name: schema.name,
@@ -339,10 +375,12 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                         });
                         console.log(tsDoc);
                     }
-                    console.error(chalk.cyan('\n💡 Next steps:'));
-                    console.error(chalk.gray(`   - 'node-schema ${name}' for quick TypeScript snippet`));
-                    console.error(chalk.gray(`   - 'guides ${name}' to find usage guides`));
-                    console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
+                    if (!options.compact) {
+                        console.error(chalk.cyan('\n💡 Next steps:'));
+                        console.error(chalk.gray(`   - 'node-schema ${name}' for quick TypeScript snippet`));
+                        console.error(chalk.gray(`   - 'guides ${name}' to find usage guides`));
+                        console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
+                    }
                 } else {
                     console.error(chalk.red(`Node '${name}' not found.`));
                     process.exit(1);
@@ -360,6 +398,7 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         .argument('<name>', 'Node name')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
+        .option('--compact', 'Compact projection: minimal snippet + required fields (token-efficient)')
         .action(async (name, options) => {
             try {
                 await withCustomNodesWarnings();
@@ -378,15 +417,30 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                 if (schema) {
                     if (options.json) {
                         const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
-                        console.log(JSON.stringify({
+                        console.log(JSON.stringify(options.compact
+                            ? {
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                version: schema.version,
+                                requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))],
+                            }
+                            : {
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                properties: props,
+                                requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
+                            }, null, 2));
+                    } else if (options.compact) {
+                        console.log(TypeScriptFormatter.generateMinimalSnippet({
                             name: schema.name,
                             type: schema.type,
                             displayName: schema.displayName,
-                            description: schema.description,
                             version: schema.version,
-                            properties: props,
-                            requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
-                        }, null, 2));
+                        }));
                     } else {
                         const tsSnippet = TypeScriptFormatter.generateNodeSnippet({
                             name: schema.name,
@@ -398,13 +452,132 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
                         });
                         console.log(tsSnippet);
                     }
-                    console.error(chalk.cyan(`\n💡 Hint: Use 'node-info ${schema.name}' for complete documentation and examples`));
+                    if (!options.compact) {
+                        console.error(chalk.cyan(`\n💡 Hint: Use 'node-info ${schema.name}' for complete documentation and examples`));
+                    }
                 } else {
                     console.error(chalk.red(`Node '${name}' not found.`));
                     process.exit(1);
                 }
             } catch (error: any) {
                 console.error(chalk.red('Error getting schema: ' + error.message));
+                process.exit(1);
+            }
+        });
+
+    // ── batch ─────────────────────────────────────────────────────────────────
+    // Universal cold-start killer: N ontology lookups in ONE process. The lazy
+    // provider promises above are reused across all calls, so the 30MB
+    // technical index is parsed once instead of once per `npx` invocation.
+    // No per-node heuristics: each call supports the same --compact
+    // projection as its single-call equivalent.
+    program
+        .command('batch')
+        .description('Run multiple read-only ontology lookups in one process (search, node-info, node-schema, examples-search, examples-info)')
+        .option('--calls <json>', 'JSON array of calls, e.g. [{"cmd":"search","query":"gmail"},{"cmd":"node-info","name":"gmailTool"}]. Reads stdin when omitted.')
+        .option('--calls-file <path>', 'Read the JSON calls array from a file (avoids shell-quoting)')
+        .option('--compact', 'Apply compact projection to every call (token-efficient)')
+        .option('--json', 'Output as JSON array (default, stdout only, no hints)')
+        .action(async (options) => {
+            try {
+                let raw = options.calls;
+                if (!raw && options.callsFile) {
+                    raw = readFileSync(options.callsFile, 'utf8');
+                }
+                if (!raw) {
+                    raw = await new Promise<string>((resolvePromise, reject) => {
+                        let data = '';
+                        process.stdin.setEncoding('utf8');
+                        process.stdin.on('data', (chunk) => { data += chunk; });
+                        process.stdin.on('end', () => resolvePromise(data));
+                        process.stdin.on('error', reject);
+                        if (process.stdin.isTTY) resolvePromise('');
+                    });
+                }
+                const calls = JSON.parse(raw || '[]');
+                if (!Array.isArray(calls)) throw new Error('--calls must be a JSON array');
+                const compact = !!options.compact;
+                const results: any[] = [];
+                for (const call of calls) {
+                    const cmd = call.cmd || call.command;
+                    try {
+                        if (cmd === 'search') {
+                            const knowledgeSearch = await getKnowledgeSearch();
+                            const res = knowledgeSearch.searchAll(call.query || '', {
+                                category: call.category,
+                                type: call.type,
+                                limit: call.limit ? parseInt(call.limit) : 5,
+                            });
+                            results.push(compact
+                                ? { cmd, query: call.query, ok: true, results: res.results.map((r: any) => ({ name: r.name || r.id, type: r.id, displayName: r.displayName || r.title || r.name || '' })) }
+                                : { cmd, ok: true, ...res });
+                        } else if (cmd === 'node-info' || cmd === 'node-schema') {
+                            const provider = await getProvider();
+                            let schema = provider.getNodeSchema(call.name);
+                            if (!schema && cmd === 'node-schema') {
+                                const sr = provider.searchNodes(call.name, 1);
+                                if (sr.length > 0) schema = provider.getNodeSchema(sr[0].name);
+                            }
+                            if (!schema) {
+                                results.push({ cmd, name: call.name, ok: false, error: `Node '${call.name}' not found.` });
+                                continue;
+                            }
+                            if (compact) {
+                                results.push(cmd === 'node-info'
+                                    ? {
+                                        cmd, name: schema.name, ok: true,
+                                        doc: TypeScriptFormatter.generateCompactNodeDoc({
+                                            name: schema.name, type: schema.type, displayName: schema.displayName,
+                                            description: schema.description, version: schema.version,
+                                            properties: schema.schema?.properties || [], parameterGating: schema.parameterGating,
+                                        }),
+                                    }
+                                    : {
+                                        cmd, name: schema.name, ok: true,
+                                        snippet: TypeScriptFormatter.generateMinimalSnippet({
+                                            name: schema.name, type: schema.type,
+                                            displayName: schema.displayName, version: schema.version,
+                                        }),
+                                    });
+                            } else if (cmd === 'node-info') {
+                                results.push({
+                                    cmd, name: schema.name, ok: true,
+                                    doc: TypeScriptFormatter.generateCompleteNodeDoc({
+                                        name: schema.name, type: schema.type, displayName: schema.displayName,
+                                        description: schema.description, version: schema.version,
+                                        properties: schema.schema?.properties || [], metadata: schema.metadata,
+                                        parameterGating: schema.parameterGating,
+                                    }),
+                                });
+                            } else {
+                                results.push({
+                                    cmd, name: schema.name, ok: true,
+                                    snippet: TypeScriptFormatter.generateNodeSnippet({
+                                        name: schema.name, type: schema.type, displayName: schema.displayName,
+                                        description: schema.description, version: schema.version,
+                                        properties: schema.schema?.properties || [],
+                                    }),
+                                });
+                            }
+                        } else if (cmd === 'examples-search') {
+                            const registry = await getRegistry();
+                            results.push({ cmd, query: call.query, ok: true, workflows: registry.search(call.query || '', call.limit ? parseInt(call.limit) : 5) });
+                        } else if (cmd === 'examples-info') {
+                            const registry = await getRegistry();
+                            const workflow = registry.getById(call.id);
+                            results.push(workflow
+                                ? { cmd, id: call.id, ok: true, workflow: { ...workflow, rawUrl: registry.getRawUrl(workflow) } }
+                                : { cmd, id: call.id, ok: false, error: `Workflow "${call.id}" not found.` });
+                        } else {
+                            results.push({ cmd, ok: false, error: `Unsupported batch cmd '${cmd}'. Use search, node-info, node-schema, examples-search, or examples-info.` });
+                        }
+                    } catch (err: any) {
+                        results.push({ cmd, ok: false, error: err.message });
+                    }
+                }
+                console.log(JSON.stringify(results, null, 2));
+            } catch (error: any) {
+                console.error(chalk.red(error.message));
                 process.exit(1);
             }
         });

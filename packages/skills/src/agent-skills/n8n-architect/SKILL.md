@@ -81,6 +81,7 @@ Use `{{N8NAC_CMD}} env ...` for workspace environments, remote URLs, active envi
 ```
 
 - Prefer `--api-key-stdin` for API keys.
+- Prefer `env add --pin` to create and pin the default environment in one process instead of a separate `env use`.
 - Do not pass secrets inline in shell arguments.
 - `env auth set` binds the key to one environment, so several environments may share a base URL with one key each. Run it once per environment; `apiKeySource` in `env status --json` is `workspace-environment` when the environment uses its own key.
 - Do not ask for host/API key when the user wants a managed local Docker instance.
@@ -255,6 +256,8 @@ Use these commands instead of guessing:
 {{N8NAC_SKILLS_CMD}} examples download <id>
 ```
 
+- Prefer `--compact` on `search`, `node-info`, and `node-schema`: same schemas, bounded output (required params + snippet + gating flags).
+- Prefer one `batch --compact` over N separate lookups: one process parses the ontology once. Pass `--calls '<json>'` or `--calls-file <path>` (file avoids shell-quoting). Supported: `search`, `node-info`, `node-schema`, `examples-search`, `examples-info`. Example: `batch --compact --calls '[{"cmd":"search","query":"gmail"},{"cmd":"node-info","name":"gmailTool"}]'`.
 - Start with `examples search` when the user asks for a common automation pattern.
 - Use examples to learn patterns, not as authority over current node schemas.
 - If a command or flag is unfamiliar, run `{{N8NAC_CMD}} <subcommand> --help`; do not invent flags.
@@ -373,6 +376,46 @@ defineRouting() {
 
 - Use `.uses()` for language models, memory, tools, parsers, embeddings, vector stores, retrievers, and other AI sub-nodes.
 - Never connect AI sub-nodes with `.out().to()`.
+- Start agentic workflows from this server-validated skeleton (adapt names/params, keep the shapes):
+
+```typescript
+@node({ name: 'Daily Schedule', type: 'n8n-nodes-base.scheduleTrigger', version: 1.3 })
+DailySchedule = { rule: { interval: [{ field: 'days', triggerAtHour: 7 }] } };
+
+@node({ name: 'Orchestrator', type: '@n8n/n8n-nodes-langchain.agent', version: 3.1 })
+Orchestrator = {
+  text: '=Summarize: {{ $json }}',
+  promptType: 'define', // required whenever `text` is set
+  options: { systemMessage: 'You are a briefing assistant.' },
+};
+
+@node({ name: 'Chat Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', version: 1.3 })
+ChatModel = { model: { __rl: true, mode: 'list', value: 'gpt-4.1-mini' }, options: {} };
+
+@node({ name: 'Window Memory', type: '@n8n/n8n-nodes-langchain.memoryBufferWindow', version: 1.4 })
+WindowMemory = { sessionIdType: 'fromInput', contextWindowLength: 5 }; // no sessionKey unless sessionIdType is 'customKey'
+
+@node({ name: 'Gmail Inbox', type: 'n8n-nodes-base.gmailTool', version: 2.2 })
+GmailInbox = {
+  resource: 'message', operation: 'getAll', limit: 20,
+  descriptionType: 'manual', // required on tools, with a toolDescription
+  toolDescription: 'Read recent Gmail messages.',
+};
+
+@node({ name: 'Briefing Dashboard', type: 'n8n-nodes-base.html', version: 1.2 })
+BriefingDashboard = { operation: 'generateHtmlTemplate', html: '<h1>Briefing</h1><pre>{{ $json }}</pre>' };
+
+@links()
+defineRouting() {
+  this.DailySchedule.out(0).to(this.Orchestrator.in(0));
+  this.Orchestrator.out(0).to(this.BriefingDashboard.in(0));
+  this.Orchestrator.uses({
+    ai_languageModel: this.ChatModel.output,
+    ai_memory: this.WindowMemory.output,
+    ai_tool: [this.GmailInbox.output],
+  });
+}
+```
 - `ai_tool` and `ai_document` must be arrays; every entry lands on input index 0.
 - Most other AI connection types are single refs, or an array when the node exposes several inputs of the same type — position = input index.
 - `needsFallback: true` (Agent, Basic LLM Chain) needs a second model on input 1: `ai_languageModel: [this.Model.output, this.FallbackModel.output]`. Same for the Model Selector node.
@@ -396,10 +439,10 @@ defineRouting() {
 
 ## Verify, Test, And Present
 
-After pushing:
+Prefer `push --verify`: it fetches the pushed workflow and validates it in the same process. A standalone `verify` right after `push --verify` re-checks the same state — skip it unless you pushed without `--verify`.
 
 ```bash
-{{N8NAC_CMD}} verify <workflowId>
+{{N8NAC_CMD}} push <path> --verify
 {{N8NAC_CMD}} test-plan <workflowId> --json
 ```
 

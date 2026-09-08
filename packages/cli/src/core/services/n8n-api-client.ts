@@ -91,6 +91,10 @@ export class N8nApiClient {
 
         this.client = axios.create({
             baseURL: host,
+            // Fail-closed default: no API call may hang indefinitely on a
+            // stalled network (setup, push, verify). Calls that need longer
+            // pass their own explicit timeout, which takes precedence.
+            timeout: 30_000,
             headers: {
                 'X-N8N-API-KEY': this.apiKey,
                 'Content-Type': 'application/json',

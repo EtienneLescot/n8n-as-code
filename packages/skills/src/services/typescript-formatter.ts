@@ -244,6 +244,77 @@ ${interfaceBody}
     }
 
     /**
+     * Universal output projection for token-constrained agent loops.
+     * Compact doc = identity + truncated description + required params +
+     * short snippet + gating flag names. No per-node heuristics: the same
+     * truncation rules apply to every node type, so output size is bounded
+     * by options, not by node complexity.
+     */
+    static generateCompactNodeDoc(schema: {
+        name: string;
+        type: string;
+        displayName: string;
+        description: string;
+        version: number | number[];
+        properties?: any[];
+        parameterGating?: Array<{
+            flag: string;
+            gatedParams: string[];
+            aiConnectionType: string | null;
+        }>;
+    }, opts: { maxDesc?: number; maxEnum?: number } = {}): string {
+        const maxDesc = opts.maxDesc ?? 300;
+        const maxEnum = opts.maxEnum ?? 10;
+        const latestVersion = Array.isArray(schema.version)
+            ? Math.max(...schema.version)
+            : schema.version;
+        const desc = this.truncate(schema.description || '', maxDesc);
+        const lines: string[] = [];
+        lines.push(`// ${schema.displayName} (${schema.type} v${latestVersion})`);
+        if (desc) lines.push(`// ${desc}`);
+        const seenRequired = new Set<string>();
+        const required: string[] = [];
+        for (const p of (schema.properties || []) as any[]) {
+            if (!p.required || p.type?.toLowerCase() === 'notice' || seenRequired.has(p.name)) continue;
+            seenRequired.add(p.name);
+            const enums = Array.isArray(p.options)
+                ? ` [${this.compactEnumList(p.options, maxEnum)}]`
+                : '';
+            required.push(`//   - ${p.name}: ${p.type}${enums}`);
+        }
+        if (required.length > 0) {
+            lines.push(`// required:`);
+            lines.push(...required);
+        }
+        lines.push(this.generateMinimalSnippet({
+            name: schema.name,
+            type: schema.type,
+            displayName: schema.displayName,
+            version: schema.version,
+        }));
+        const gating = schema.parameterGating || [];
+        if (gating.length > 0) {
+            lines.push(`// gating flags (set true only when using the gated params/connection):`);
+            for (const g of gating) {
+                lines.push(`//   - ${g.flag}`);
+            }
+        }
+        return lines.join('\n') + '\n';
+    }
+
+    private static truncate(s: string, n: number): string {
+        const oneLine = s.replace(/\s+/g, ' ').trim();
+        return oneLine.length > n ? oneLine.slice(0, n - 1) + '…' : oneLine;
+    }
+
+    private static compactEnumList(options: any[], max: number): string {
+        const values = options.map((o: any) => String(o.value ?? o.name));
+        return values.length > max
+            ? [...values.slice(0, max), `+${values.length - max} more`].join(' | ')
+            : values.join(' | ');
+    }
+
+    /**
      * Generate a minimal node snippet for quick insertion
      */
     static generateMinimalSnippet(schema: {
