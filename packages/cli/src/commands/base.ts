@@ -169,7 +169,10 @@ export class BaseCommand {
     }
 
     private tryResolveEnvironment(environmentNameOrId?: string): IResolvedWorkspaceEnvironment | undefined {
-        if (!this.configService.isWorkspaceConfigV4()) {
+        // Not `isWorkspaceConfigV4()`: a workspace `.env` resolves an environment with no
+        // config file on disk, and gating on the file alone left `list`/`pull`/`push`
+        // reporting an unconfigured CLI for a workspace that was in fact usable.
+        if (!this.configService.hasResolvableEnvironment()) {
             return undefined;
         }
         try {

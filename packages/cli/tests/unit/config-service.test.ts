@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
@@ -377,7 +377,7 @@ describe('ConfigService V4 workspace environments', () => {
         expect(context.workflowsPath).toBe(path.join(workspaceRoot, 'workflows/prod'));
     });
 
-    it('auto-configures default workspace environment from .env when unconfigured', () => {
+    it('derives the default workspace environment from .env when unconfigured', () => {
         writeFileSync(path.join(workspaceRoot, '.env'), [
             'N8N_HOST=https://auto.example.test',
             'N8N_API_KEY=test-api-key-123',
@@ -396,5 +396,39 @@ describe('ConfigService V4 workspace environments', () => {
                 level: 2,
             },
         });
+    });
+
+    it('persists nothing when it derives an environment from .env', () => {
+        // resolveEnvironment is a read with call sites as incidental as a VS Code tree
+        // refresh. It must not write config, and must not copy the API key or the native
+        // MCP token into the global secret store.
+        writeFileSync(path.join(workspaceRoot, '.env'), [
+            'N8N_HOST=https://ephemeral.example.test',
+            'N8N_API_KEY=should-not-be-stored',
+            'N8N_NATIVE_MCP_TOKEN=should-not-be-stored-either',
+        ].join('\n'));
+
+        const configService = new ConfigService(workspaceRoot);
+        configService.resolveEnvironment();
+
+        expect(existsSync(path.join(workspaceRoot, 'n8nac-config.json'))).toBe(false);
+        expect(configService.listEnvironments()).toHaveLength(0);
+    });
+
+    it("ignores a bare N8N_HOST, n8n's server bind variable rather than a client URL", () => {
+        // A stock n8n docker-compose .env carries `N8N_HOST=localhost`. Deriving an
+        // environment from it would fail later with no explanation.
+        writeFileSync(path.join(workspaceRoot, '.env'), 'N8N_HOST=localhost:5678\n');
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(() => configService.resolveEnvironment()).toThrow(/No workspace environment is configured/);
+        expect(configService.hasResolvableEnvironment()).toBe(false);
+    });
+
+    it('reports a .env-derived environment as resolvable so command gates let it through', () => {
+        writeFileSync(path.join(workspaceRoot, '.env'), 'N8N_HOST=https://gate.example.test\n');
+
+        expect(new ConfigService(workspaceRoot).hasResolvableEnvironment()).toBe(true);
     });
 });

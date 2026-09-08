@@ -32,6 +32,9 @@ import {
 
 const DEFAULT_SYNC_FOLDER = 'workflows';
 
+/** Identity of the ephemeral environment derived from a workspace `.env`. */
+const ENV_FILE_ENVIRONMENT_ID = 'env-file';
+
 type GlobalN8nInstanceWithUserIdentifier = GlobalN8nInstance & { instanceUserIdentifier?: string };
 type UpsertGlobalN8nInstanceInputWithUserIdentifier = UpsertGlobalN8nInstanceInput & { instanceUserIdentifier?: string };
 
@@ -590,58 +593,98 @@ export class ConfigService {
     }
 
     /**
-     * Zero-config bootstrap: derive the `default` environment from a workspace `.env`.
-     * Only the file is read — ambient process env must not silently become workspace config.
+     * The workspace `.env`, when it can stand in for a configured environment.
+     *
+     * `N8N_HOST` is n8n's own server *bind* variable, so a stock docker-compose `.env`
+     * carries a bare hostname. Only an absolute http(s) URL can address an instance, and
+     * silently deriving `localhost` from one would fail later with no explanation.
      */
-    private tryAutoConfigureFromEnv(): IWorkspaceEnvironment | undefined {
+    private readEnvFileEnvironment(): { host: string; apiKey?: string; mcpToken?: string; mcpUrl?: string } | undefined {
         const envFile = path.join(this.workspaceRoot, '.env');
-        if (!fs.existsSync(envFile)) {
+        if (!fs.existsSync(envFile)) return undefined;
+
+        let parsed: Record<string, string>;
+        try {
+            parsed = dotenv.parse(fs.readFileSync(envFile));
+        } catch {
             return undefined;
         }
 
-        const env = dotenv.parse(fs.readFileSync(envFile));
-        const host = (env.N8N_HOST || env.N8N_BASE_URL || '').trim();
-        if (!host) {
+        const host = (parsed.N8N_BASE_URL || parsed.N8N_HOST || '').trim();
+        if (!host) return undefined;
+
+        try {
+            const url = new URL(host);
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+        } catch {
             return undefined;
         }
 
-        const apiKey = (env.N8N_API_KEY || '').trim();
-        const mcpToken = (env.N8N_NATIVE_MCP_TOKEN || '').trim();
-        const mcpUrl = (env.N8N_NATIVE_MCP_URL || '').trim();
+        return {
+            host,
+            apiKey: cleanOptional(parsed.N8N_API_KEY),
+            mcpToken: cleanOptional(parsed.N8N_NATIVE_MCP_TOKEN),
+            mcpUrl: cleanOptional(parsed.N8N_NATIVE_MCP_URL),
+        };
+    }
 
-        const target = this.ensureEmbeddedInstanceTarget({ name: 'default', url: host });
-        const environment = this.addEnvironment({
+    /** True when a command can resolve an environment, including one derived from `.env`. */
+    hasResolvableEnvironment(): boolean {
+        return this.isWorkspaceConfigV4() || this.readEnvFileEnvironment() !== undefined;
+    }
+
+    /**
+     * Derive an environment from the workspace `.env`, persisting nothing.
+     *
+     * Deliberately ephemeral. `resolveEnvironment` is a read with call sites as incidental
+     * as a VS Code tree refresh; writing `n8nac-config.json` and copying the API key and
+     * native MCP token into the global secret store from there would make a read
+     * side-effectful, and would duplicate secrets the `.env` already holds. It also keeps
+     * the derived environment disposable: delete the `.env` and it is gone, with no
+     * leftover entry that `env remove` would have to clean up.
+     */
+    private resolveEnvironmentFromEnvFile(): IResolvedWorkspaceEnvironment | undefined {
+        const envFile = this.readEnvFileEnvironment();
+        if (!envFile) return undefined;
+
+        const target = {
+            id: ENV_FILE_ENVIRONMENT_ID,
             name: 'default',
-            environmentTarget: target.id,
+            kind: 'external-instance',
+            url: envFile.host,
+        } as IEnvironmentTarget;
+
+        const environment = {
+            id: ENV_FILE_ENVIRONMENT_ID,
+            name: 'default',
+            syncSlug: 'default',
+            environmentTargetId: ENV_FILE_ENVIRONMENT_ID,
+            workflowsPath: DEFAULT_SYNC_FOLDER,
             projectId: 'personal',
             projectName: 'Personal',
-            workflowsPath: 'workflows',
-        });
+            ...(envFile.mcpToken
+                ? { nativeMcp: { enabled: true, level: 2, url: envFile.mcpUrl } as IWorkspaceNativeMcpConfig }
+                : {}),
+        } as IWorkspaceEnvironment;
 
-        if (apiKey) {
-            this.saveWorkspaceEnvironmentApiKey(environment.id, apiKey);
-        }
-
-        if (mcpToken) {
-            this.saveNativeMcpToken(environment.id, mcpToken);
-            this.updateEnvironment(environment.id, {
-                nativeMcp: { enabled: true, level: 2, url: mcpUrl || undefined },
-            });
-        }
-
-        this.pinEnvironment(environment.id);
-        return environment;
+        const resolved = this.resolveEnvironmentFromTarget(environment, target, 'workspace-default');
+        return {
+            ...resolved,
+            apiKey: envFile.apiKey,
+            apiKeyAvailable: Boolean(envFile.apiKey),
+            apiKeySource: envFile.apiKey ? 'env' : 'missing',
+            nativeMcp: resolved.nativeMcp
+                ? { ...resolved.nativeMcp, tokenConfigured: Boolean(envFile.mcpToken) }
+                : undefined,
+        } as IResolvedWorkspaceEnvironment;
     }
 
     resolveEnvironment(environmentNameOrId?: string): IResolvedWorkspaceEnvironment {
-        let config = this.readWorkspaceConfigFile();
+        const config = this.readWorkspaceConfigFile();
         if (config.environments.length === 0) {
-            const autoEnv = this.tryAutoConfigureFromEnv();
-            if (autoEnv) {
-                config = this.readWorkspaceConfigFile();
-            } else {
-                throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
-            }
+            const fromEnvFile = this.resolveEnvironmentFromEnvFile();
+            if (fromEnvFile) return fromEnvFile;
+            throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
         }
         const environment = environmentNameOrId
             ? this.findEnvironment(config, environmentNameOrId)
