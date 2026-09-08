@@ -489,7 +489,13 @@ workspaceProgram.command('status')
                 workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
                 `Instance: ${chalk.bold(resolvedEnvironment?.activeInstanceName || workspaceConfig.activeInstanceId || '(none)')}`,
                 `Project : ${chalk.bold(resolvedEnvironment?.projectName || workspaceConfig.projectName || workspaceConfig.projectId || '(none)')}`,
+                // Without the host this command reads as though setup did nothing, and it
+                // resolves the environment already, so the value costs nothing to show.
+                `Host    : ${chalk.bold(resolvedEnvironment?.host || workspaceConfig.host || '(none)')}`,
                 `Workflows path: ${chalk.bold(resolvedEnvironment?.workflowsPath || workspaceConfig.workflowsPath || '(none)')}`,
+                // This command answers "what context am I in", not "does it work". Point at
+                // the one that checks, rather than making every context read hit the network.
+                chalk.gray('\nRun `n8nac env status` to check the instance is reachable.'),
                 '',
             ].filter(Boolean).join('\n'),
         );
