@@ -278,7 +278,7 @@ export class N8nAsCodeMcpService {
     async getNodeInfo(name: string | string[], options: { compact?: boolean } = {}) {
         const batch = Array.isArray(name);
         const names = batch ? name : [name];
-        const { resolveNode, TypeScriptFormatter } = await import('@n8n-as-code/skills');
+        const { resolveNode, suggestNodes, TypeScriptFormatter } = await import('@n8n-as-code/skills');
         const provider = await this.getProvider();
 
         const found: any[] = [];
@@ -298,7 +298,9 @@ export class N8nAsCodeMcpService {
         }
 
         if (found.length === 0) {
-            throw new Error(`Node '${notFound.join("', '")}' not found.`);
+            const suggestions = suggestNodes(provider, names[0]);
+            throw new Error(`Node '${notFound.join("', '")}' not found.`
+                + (suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : ''));
         }
 
         const render = (schema: any) => TypeScriptFormatter.generateCompactNodeDoc({
@@ -319,7 +321,13 @@ export class N8nAsCodeMcpService {
             return [...notes, ...found.map(render)].join('\n\n');
         }
 
-        return batch ? { nodes: found, notFound, inexactMatches } : found[0];
+        if (batch) return { nodes: found, notFound, inexactMatches };
+        // The CLI announces a fuzzy hit on stderr. MCP has no stderr channel, so it rides
+        // the payload — otherwise the single-name form is the one shape where landing on a
+        // different node reads as confirmation that the requested name was right.
+        return inexactMatches.length > 0
+            ? { ...found[0], resolvedFrom: inexactMatches[0].requested }
+            : found[0];
     }
 
     async searchDocs(query: string, options: {

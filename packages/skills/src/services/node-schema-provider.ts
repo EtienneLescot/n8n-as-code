@@ -512,9 +512,55 @@ export interface NodeResolution {
 }
 
 /**
- * Resolve a node by name the way the CLI does: an exact match first, then a single
- * high-confidence fuzzy hit. Shared so `n8nac skills node-info` and the MCP server's
- * `get_n8n_node_info` cannot drift apart on what counts as a match.
+ * Compare two node names the way a human would: `n8n-nodes-base.googleSheets`,
+ * `google sheets` and `googleSheets` are all the same node.
+ */
+function normalizeNodeName(name: string): string {
+    return name.replace(/^.*\./, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+/** Levenshtein distance. Only used on short node names, so the plain O(n*m) table is fine. */
+function editDistance(a: string, b: string): number {
+    let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+        const current = [i];
+        for (let j = 1; j <= b.length; j++) {
+            current[j] = Math.min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+            );
+        }
+        previous = current;
+    }
+    return previous[b.length];
+}
+
+/**
+ * Whether a search hit is plausibly the node the caller named, judged on the name alone.
+ *
+ * A typo (`slackk`) and an abbreviation (`httpReq`, `sheets`) are the same node; a name
+ * that shares nothing with the candidate is not, however highly the search engine ranked it.
+ */
+function isSameNodeName(query: string, candidate: string): boolean {
+    const q = normalizeNodeName(query);
+    const c = normalizeNodeName(candidate);
+    if (q === c) return true;
+    const [short, long] = q.length <= c.length ? [q, c] : [c, q];
+    // A 3-letter substring matches half the ontology; 4 is where containment starts meaning something.
+    if (short.length >= 4 && long.includes(short)) return true;
+    return short.length >= 5 && editDistance(q, c) <= 2;
+}
+
+/**
+ * Resolve a node by name the way the CLI does: an exact match first, then the closest
+ * search hit whose *name* is plausibly the same node. Shared so `n8nac skills node-info`
+ * and the MCP server's `get_n8n_node_info` cannot drift apart on what counts as a match.
+ *
+ * `searchNodes` ranks by relevance, not similarity, and its score is unbounded: for
+ * `zzzznotanode` the top hit scored 133 and was `vectorStoreWeaviate`. Gating on that score
+ * was a no-op that turned every miss into a confident wrong answer, so a candidate has to
+ * earn the match on its name here.
  *
  * Reports whether the match was exact: a fuzzy hit can land on a different node than the
  * caller meant, and silently returning it reads as confirmation that the name was right.
@@ -523,12 +569,26 @@ export function resolveNode(provider: NodeSchemaProvider, name: string): NodeRes
     const exact = provider.getNodeSchema(name);
     if (exact) return { schema: exact, matchedName: name, exact: true };
 
-    const [best] = provider.searchNodes(name, 1);
-    if (best && ((best.relevanceScore || 0) > 80 || best.name.toLowerCase() === name.toLowerCase())) {
-        const schema = provider.getNodeSchema(best.name);
+    const candidates = provider.searchNodes(name, 8)
+        .filter((hit: any) => isSameNodeName(name, hit.name))
+        // Shortest wins: `sheets` means `googleSheets`, not `googleSheetsTrigger`.
+        .sort((a: any, b: any) => a.name.length - b.name.length);
+
+    for (const candidate of candidates) {
+        const schema = provider.getNodeSchema(candidate.name);
         if (schema) {
-            return { schema, matchedName: best.name, exact: best.name.toLowerCase() === name.toLowerCase() };
+            return {
+                schema,
+                matchedName: candidate.name,
+                exact: normalizeNodeName(candidate.name) === normalizeNodeName(name),
+            };
         }
     }
     return undefined;
 }
+
+/** What to offer when nothing matched, so a miss costs a suggestion rather than a round trip. */
+export function suggestNodes(provider: NodeSchemaProvider, name: string, limit = 5): string[] {
+    return provider.searchNodes(name, limit).map((hit: any) => hit.name);
+}
+

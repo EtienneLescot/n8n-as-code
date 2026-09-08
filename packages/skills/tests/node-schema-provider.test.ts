@@ -1,8 +1,9 @@
-import { NodeSchemaProvider } from '../src/services/node-schema-provider';
+import { NodeSchemaProvider, resolveNode, suggestNodes } from '../src/services/node-schema-provider';
 import { TypeScriptFormatter } from '../src/services/typescript-formatter';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 
 describe('NodeSchemaProvider', () => {
     let tempDir: string;
@@ -433,4 +434,59 @@ describe('TypeScriptFormatter — nested fixedcollection', () => {
         expect(defVal).toContain("mode: 'list'");
     });
 
+});
+
+/**
+ * `resolveNode` decides what `n8nac skills node-info` and the MCP `get_n8n_node_info` treat
+ * as "the node you asked for". It used to gate the fuzzy fallback on `searchNodes`'
+ * relevance score, which is unbounded and not a similarity measure: `zzzznotanode` scored
+ * 133 against `vectorStoreWeaviate` and sailed past the threshold, so every miss became a
+ * confident wrong node. It is judged on the name now.
+ */
+const ontology = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../src/assets/n8n-nodes-technical.json',
+);
+const describeWithOntology = fs.existsSync(ontology) ? describe : describe.skip;
+
+describeWithOntology('resolveNode', () => {
+    let real: NodeSchemaProvider;
+    beforeAll(() => { real = new NodeSchemaProvider(ontology); });
+
+    test.each([
+        ['gmail', 'gmail'],
+        ['googleSheets', 'googleSheets'],
+        ['webhook', 'webhook'],
+    ])('resolves %s exactly', (query, expected) => {
+        const resolution = resolveNode(real, query);
+        expect(resolution?.matchedName).toBe(expected);
+        expect(resolution?.exact).toBe(true);
+    });
+
+    test.each([
+        ['slackk', 'slack'],            // typo
+        ['httpReq', 'httpRequest'],     // abbreviation
+        ['sheets', 'googleSheets'],     // partial name, shortest candidate wins
+        ['postgresql', 'postgres'],     // the search engine ranked vectorStorePGVector first
+    ])('resolves %s to %s and says it was inexact', (query, expected) => {
+        const resolution = resolveNode(real, query);
+        expect(resolution?.matchedName).toBe(expected);
+        expect(resolution?.exact).toBe(false);
+    });
+
+    test.each(['zzzznotanode', 'xyzzy-plugh', 'sendEmail'])(
+        'refuses to invent a node for %s',
+        (query) => {
+            expect(resolveNode(real, query)).toBeUndefined();
+        },
+    );
+
+    test('a miss still offers somewhere to go next', () => {
+        expect(suggestNodes(real, 'zzzznotanode').length).toBeGreaterThan(0);
+    });
+
+    test('a prefixed type name is the same node, not a fuzzy hit', () => {
+        const resolution = resolveNode(real, 'n8n-nodes-base.googleSheets');
+        expect(resolution?.exact).toBe(true);
+    });
 });

@@ -8,7 +8,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { resolveNode } from '../services/node-schema-provider.js';
+import { resolveNode, suggestNodes } from '../services/node-schema-provider.js';
 import { TypeScriptFormatter } from '../services/typescript-formatter.js';
 import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
@@ -359,7 +359,11 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         for (const name of names) {
             const resolution = resolveNode(provider, name);
             if (!resolution) {
-                console.error(chalk.red(`Node '${name}' not found.`));
+                // A bare miss costs a round trip; the search hits that were rejected as
+                // matches are still the best thing to try next.
+                const suggestions = suggestNodes(provider, name);
+                console.error(chalk.red(`Node '${name}' not found.`)
+                    + (suggestions.length > 0 ? chalk.dim(` Did you mean: ${suggestions.join(', ')}?`) : ''));
                 missing++;
                 continue;
             }

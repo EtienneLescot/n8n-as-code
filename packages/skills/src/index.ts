@@ -1,5 +1,5 @@
 // Library Exports for Consumers
-export { NodeSchemaProvider, resolveNode } from './services/node-schema-provider.js';
+export { NodeSchemaProvider, resolveNode, suggestNodes } from './services/node-schema-provider.js';
 export { AiContextGenerator } from './services/ai-context-generator.js';
 export {
   getN8nacDevConfigFilenames,
