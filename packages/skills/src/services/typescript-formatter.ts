@@ -6,6 +6,44 @@
  */
 
 export class TypeScriptFormatter {
+    /** Pick up to 7 representative params: resource/operation first, then required, then the rest. */
+    private static selectKeyParams(allProps: any[]): any[] {
+        const picked: any[] = [];
+        const seen = new Set<string>();
+        const take = (prop: any) => { seen.add(prop.name); picked.push(prop); };
+
+        for (const prop of allProps) {
+            if ((prop.name === 'resource' || prop.name === 'operation') && !seen.has(prop.name)) take(prop);
+        }
+        // Required params first, then any other settable one. Notice banners are UI-only.
+        for (const requiredOnly of [true, false]) {
+            for (const prop of allProps) {
+                if (picked.length >= 7) return picked;
+                if (seen.has(prop.name) || prop.type?.toLowerCase() === 'notice') continue;
+                if (requiredOnly && !prop.required) continue;
+                take(prop);
+            }
+        }
+        return picked;
+    }
+
+    /**
+     * Render a parameter's example value. n8n stores per-dataType fixedCollection rules as
+     * separate properties sharing one name; their option groups are merged so the snippet
+     * shows every valid value.
+     */
+    private static renderParamValue(prop: any, allProps: any[]): string {
+        if (prop.type?.toLowerCase() !== 'fixedcollection') {
+            return TypeScriptFormatter.generateDefaultValue(prop);
+        }
+        const siblings = allProps.filter((p: any) =>
+            p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
+        const renderProp = siblings.length > 1
+            ? { ...prop, options: siblings.flatMap((p: any) => p.options || []) }
+            : prop;
+        return TypeScriptFormatter.expandFixedCollectionValue(renderProp, '  ');
+    }
+
     /**
      * Generate a TypeScript node usage example from schema
      */
@@ -17,78 +55,26 @@ export class TypeScriptFormatter {
         version: number | number[];
         properties?: any[];
     }): string {
-        const latestVersion = Array.isArray(schema.version) 
-            ? Math.max(...schema.version) 
+        const latestVersion = Array.isArray(schema.version)
+            ? Math.max(...schema.version)
             : schema.version;
 
-        // Get unique parameters with smart prioritization
-        const seenNames = new Set<string>();
-        const uniqueParams: any[] = [];
         const allProps = schema.properties || [];
-        
-        // Priority 1: resource and operation (essential for most nodes)
-        for (const prop of allProps) {
-            if ((prop.name === 'resource' || prop.name === 'operation') && !seenNames.has(prop.name)) {
-                seenNames.add(prop.name);
-                uniqueParams.push(prop);
-            }
-        }
-        
-        // Priority 2: Required params (up to 7 total including resource/operation)
-        for (const prop of allProps) {
-            if (uniqueParams.length >= 7) break;
-            if (prop.required && !seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
-                seenNames.add(prop.name);
-                uniqueParams.push(prop);
-            }
-        }
-        
-        // Priority 3: Common optional params (to reach ~7 total)
-        for (const prop of allProps) {
-            if (uniqueParams.length >= 7) break;
-            // Skip UI-only notice banners — they are not settable runtime parameters
-            if (!seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
-                seenNames.add(prop.name);
-                uniqueParams.push(prop);
-            }
-        }
-
-        // Build parameter object with comments
         const paramLines: string[] = [];
-        
-        for (const prop of uniqueParams) {
-            const comment = prop.description ? `  // ${prop.description}` : '';
-            const requiredLabel = prop.required ? ' (required)' : ' (optional)';
-            const typeHint = prop.type ? ` // type: ${prop.type}` : '';
-            
-            if (comment) {
-                paramLines.push(comment);
-            }
 
-            const isFixedColl = prop.type?.toLowerCase() === 'fixedcollection';
-            let renderProp = prop;
-            if (isFixedColl) {
-                // n8n stores per-dataType fixedCollection rules as separate properties with the
-                // same name but different displayOptions. Merge their options groups so we can
-                // show all valid operation values in one snippet.
-                const siblings = allProps.filter((p: any) =>
-                    p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
-                if (siblings.length > 1) {
-                    const mergedOptions = (siblings as any[]).flatMap((p: any) => p.options || []);
-                    renderProp = { ...prop, options: mergedOptions };
-                }
+        for (const prop of this.selectKeyParams(allProps)) {
+            if (prop.description) {
+                paramLines.push(`  // ${prop.description}`);
             }
-            const value = isFixedColl
-                ? TypeScriptFormatter.expandFixedCollectionValue(renderProp, '  ')
-                : this.generateDefaultValue(prop);
-            paramLines.push(`  ${prop.name}: ${value},${typeHint}${requiredLabel}`);
+            const typeHint = prop.type ? ` // type: ${prop.type}` : '';
+            const requiredLabel = prop.required ? ' (required)' : ' (optional)';
+            paramLines.push(`  ${prop.name}: ${this.renderParamValue(prop, allProps)},${typeHint}${requiredLabel}`);
         }
 
         const paramsStr = paramLines.length > 0 
             ? '\n' + paramLines.join('\n') + '\n  '
             : ' ';
 
-        const className = this.toPascalCase(schema.name);
         const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
 
         return `// ${schema.displayName}
@@ -406,6 +392,8 @@ ${nodeProp} = { /* parameters */ };`;
             // At runtime the JSON structure is { assignments: Array<{id,name,value,type}> }
             case 'assignmentcollection':
                 return `{ assignments: Array<{ id?: string; name: string; value: string | number | boolean | unknown[] | Record<string, unknown>; type?: 'string' | 'number' | 'boolean' | 'array' | 'object' }> }`;
+            case 'resourcelocator':
+                return `{ __rl: true; value: string; mode: 'list' | 'id' | 'url' | string }`;
             case 'fixedcollection': {
                 const opts = prop.options as any[] | undefined;
                 if (!opts || opts.length === 0) return 'Record<string, any>';
@@ -532,6 +520,17 @@ ${nodeProp} = { /* parameters */ };`;
         // full assignments array — always override regardless of prop.default.
         if (type === 'assignmentcollection') {
             return `{\n    assignments: [\n      {\n        id: '1',\n        name: 'fieldName',\n        value: 'fieldValue',\n        type: 'string',  // valid: string | number | boolean | array | object\n      }\n    ]\n  }`;
+        }
+
+        // resourceLocator runtime structure requires __rl: true, mode, and value
+        if (type === 'resourcelocator') {
+            const mode = typeof prop.default === 'object' && prop.default !== null && prop.default.mode
+                ? prop.default.mode
+                : 'list';
+            const value = typeof prop.default === 'object' && prop.default !== null && prop.default.value !== undefined
+                ? prop.default.value
+                : (typeof prop.default === 'string' ? prop.default : '');
+            return `{ __rl: true, value: '${value}', mode: '${mode}' }`;
         }
 
         if (prop.default !== undefined && prop.default !== null) {

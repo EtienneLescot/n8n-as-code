@@ -369,4 +369,26 @@ describe('TypeScriptFormatter — nested fixedcollection', () => {
         // The option field inside fieldOptions must appear
         expect(expanded).toContain('option:');
     });
+
+    test('mapTypeToTypeScript: resourceLocator produces strict __rl object type', () => {
+        const rlProp = {
+            name: 'sheetId',
+            type: 'resourceLocator',
+        };
+        const tsType = (TypeScriptFormatter as any).mapTypeToTypeScript(rlProp);
+        expect(tsType).toContain('__rl: true');
+        expect(tsType).toContain('value: string');
+        expect(tsType).toContain('mode:');
+    });
+
+    test('generateDefaultValue: resourceLocator produces __rl object structure', () => {
+        const rlProp = {
+            name: 'sheetId',
+            type: 'resourceLocator',
+        };
+        const defVal = (TypeScriptFormatter as any).generateDefaultValue(rlProp);
+        expect(defVal).toContain('__rl: true');
+        expect(defVal).toContain("mode: 'list'");
+    });
+
 });

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+import { join, dirname, resolve, delimiter, basename } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import {
     N8nApiClient,
@@ -70,22 +70,36 @@ function hasWorkspaceDevCommand(projectRoot: string): boolean {
     return N8NAC_DEV_CONFIG_FILENAMES.some((filename) => existsSync(join(projectRoot, filename)));
 }
 
-function inferLocalDevCliCommand(projectRoot: string): string | undefined {
+/**
+ * True when a plain shell resolves `n8nac` on its own.
+ * PATH entries ending in node_modules/.bin are ignored: those are injected by our own
+ * npx / npm-script invocation and will not exist in the agent's shell afterwards.
+ */
+function isN8nacOnShellPath(): boolean {
+    const extensions = process.platform === 'win32'
+        ? (process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';')
+        : [''];
+    return (process.env.PATH || process.env.Path || '').split(delimiter).some((dir) =>
+        dir
+        && basename(dir) !== '.bin'
+        && extensions.some((ext) => existsSync(join(dir, `n8nac${ext}`))));
+}
+
+function inferFastCliCommand(projectRoot: string): string | undefined {
     if (process.env.N8NAC_COMMAND || hasWorkspaceDevCommand(projectRoot)) {
         return undefined;
     }
 
     const entrypoint = process.argv[1] ? resolve(process.argv[1]) : '';
-    if (!entrypoint || entrypoint.includes(`${join('node_modules', '')}`)) {
-        return undefined;
+    if (entrypoint
+        && !entrypoint.includes(`${join('node_modules', '')}`)
+        && entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js'))
+        && existsSync(entrypoint)) {
+        return `node ${quoteShellArg(entrypoint)}`;
     }
-    if (!entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js'))) {
-        return undefined;
-    }
-    if (!existsSync(entrypoint)) {
-        return undefined;
-    }
-    return `node ${quoteShellArg(entrypoint)}`;
+
+    // `npx --yes n8nac@<tag>` costs ~2s per call; an installed binary costs ~1s.
+    return isN8nacOnShellPath() ? 'n8nac' : undefined;
 }
 
 /**
@@ -223,7 +237,7 @@ export class UpdateAiCommand {
                 : getDistTag();
             const nativeMcp = resolveActiveNativeMcpLevel(projectRoot);
             await aiContextGenerator.generate(projectRoot, version, distTag, {
-                cliCommandOverride: options.cliCmd || inferLocalDevCliCommand(projectRoot),
+                cliCommandOverride: options.cliCmd || inferFastCliCommand(projectRoot),
                 managerCommandOverride: options.managerCmd || inferLocalDevManagerCommand(),
                 cliVersion: getCliVersion(),
                 nativeMcp,

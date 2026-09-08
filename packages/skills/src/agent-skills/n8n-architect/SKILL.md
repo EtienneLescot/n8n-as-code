@@ -38,6 +38,7 @@ Resolve the effective environment through the backend before workflow work:
 
 - Treat `env status --json` as the source of effective workspace readiness.
 - Do not infer readiness from raw files, generated agent docs, or directory names.
+- A workspace `.env` holding `N8N_HOST` (plus any of `N8N_API_KEY`, `N8N_NATIVE_MCP_URL`, `N8N_NATIVE_MCP_TOKEN`) configures the `default` environment on first use: `env status --json` then resolves with no `env add`, `env auth set`, `env use`, or `native-mcp configure`.
 - If `env status --json` fails because the workspace is not configured, use `env add`, `env auth set`, and `env use` to create or select a V4 workspace environment.
 - Managed local instances remain machine-global runtime resources.
 - Workspace environments remain workspace-scoped and are managed through `{{N8NAC_CMD}} env ...`.
@@ -46,7 +47,7 @@ Resolve the effective environment through the backend before workflow work:
 
 1. `cd` to the context root.
 2. Run `{{N8NAC_CMD}} update-ai`, then read `AGENTS.md`.
-3. Run `{{N8NAC_CMD}} env status --json`.
+3. Run `{{N8NAC_CMD}} env status --json`. If it resolves, the workspace is ready — skip steps 4-9.
 4. If the context root is not ready, inspect managed local instances with `{{N8N_MANAGER_CMD}} instance list`.
 5. Reuse an existing environment or managed local instance when suitable.
 6. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
@@ -200,8 +201,10 @@ Never guess n8n node parameters.
 {{N8NAC_SKILLS_CMD}} validate <workflow.workflow.ts>
 ```
 
+- Batch node queries: query multiple nodes in a single command using `{{N8NAC_SKILLS_CMD}} node-info <node1> <node2> ... --compact` to inspect essential properties, required parameters, and valid options in one fast, token-efficient turn.
 - Use exact node `type` and valid `typeVersion` values from `node-info`.
 - Use exact resource, operation, option, and parameter names from schema output.
+- Parameters of type `resourceLocator` must be structured as `{ __rl: true, value: '...', mode: 'list' | 'id' | 'url' }`.
 - Do not invent parameters, operations, credential types, or CLI flags.
 - Treat schema output as the absolute source of truth even if examples or memory disagree.
 - Prefer the highest valid `typeVersion` returned by schema output.
@@ -258,6 +261,7 @@ Use these commands instead of guessing:
 
 - Prefer `--compact` on `search`, `node-info`, and `node-schema`: same schemas, bounded output (required params + snippet + gating flags).
 - Prefer one `batch --compact` over N separate lookups: one process parses the ontology once. Pass `--calls '<json>'`, `--calls-file <path>` (file avoids shell-quoting), or pipe JSON via stdin. `--compact` applies to `search`, `node-info`, `node-schema`; `examples-search` and `examples-info` always return full workflow data. Example: `batch --compact --calls '[{"cmd":"search","query":"gmail"},{"cmd":"node-info","name":"gmailTool"}]'`.
+- For several nodes at once, `node-info` and `node-schema` also take multiple names directly: `{{N8NAC_SKILLS_CMD}} node-info <node1> <node2> ... --compact`.
 - Start with `examples search` when the user asks for a common automation pattern.
 - Fetch community examples only when you do not know how to wire something, when the workflow is unusually complex, or when the user explicitly asks. Each download costs a full roundtrip: for routine tasks, local knowledge (`search`, `node-info`, `batch`) is faster and authoritative. Skip examples otherwise.
 - Use examples to learn patterns, not as authority over current node schemas.
@@ -406,6 +410,7 @@ Prefer `push --verify`: it fetches the pushed workflow and validates it in the s
 {{N8NAC_CMD}} push <path> --verify
 {{N8NAC_CMD}} test-plan <workflowId> --json
 ```
+
 
 For webhook, chat, or form workflows, prefer the production test sequence:
 

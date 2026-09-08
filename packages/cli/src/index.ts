@@ -790,21 +790,33 @@ environmentProgram.command('status')
     .option('--json', 'Output resolved environment as JSON')
     .action((nameOrId, options) => {
         const configService = new ConfigService();
-        const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
-        printJsonOrText(
-            options,
-            redactResolvedEnvironment(environment),
-            [
-                chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
-                `Target  : ${chalk.bold(`${environment.environmentTargetName} (${environment.sourceKind})`)}`,
-                `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
-                `Host    : ${chalk.bold(environment.host)}`,
-                `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
-                `Workflows path: ${chalk.bold(environment.workflowsPath || '(unresolved)')}`,
-                `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
-                '',
-            ].join('\n'),
-        );
+        try {
+            const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+            printJsonOrText(
+                options,
+                redactResolvedEnvironment(environment),
+                [
+                    chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
+                    `Target  : ${chalk.bold(`${environment.environmentTargetName} (${environment.sourceKind})`)}`,
+                    `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
+                    `Host    : ${chalk.bold(environment.host)}`,
+                    `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
+                    `Workflows path: ${chalk.bold(environment.workflowsPath || '(unresolved)')}`,
+                    `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
+                    '',
+                ].join('\n'),
+            );
+        } catch (error: any) {
+            if (options.json) {
+                console.log(JSON.stringify({
+                    configured: false,
+                    error: error.message,
+                    environments: configService.listEnvironments(),
+                }, null, 2));
+                process.exit(1);
+            }
+            throw error;
+        }
     });
 
 hideCommand(program.command('setup'))

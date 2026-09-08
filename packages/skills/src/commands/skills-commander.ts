@@ -325,140 +325,143 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
             }
         });
 
-    // ── node-info ─────────────────────────────────────────────────────────────
+    // ── node-info / node-schema shared lookup ─────────────────────────────────
+    interface NodeRenderers {
+        json: (schema: any) => unknown;
+        ts: (schema: any) => string;
+        compact: (schema: any) => string;
+    }
+
+    const formatterInput = (schema: any) => ({
+        name: schema.name,
+        type: schema.type,
+        displayName: schema.displayName,
+        description: schema.description,
+        version: schema.version,
+        properties: schema.schema?.properties || [],
+    });
+
+    /** Exact match first, then a single high-confidence fuzzy hit. */
+    const lookupNode = (provider: any, name: string): any => {
+        const exact = provider.getNodeSchema(name);
+        if (exact) return exact;
+        const [best] = provider.searchNodes(name, 1);
+        if (best && ((best.relevanceScore || 0) > 80 || best.name.toLowerCase() === name.toLowerCase())) {
+            return provider.getNodeSchema(best.name);
+        }
+        return undefined;
+    };
+
+    /** Renders one or more nodes; exits 1 only when nothing at all resolved. */
+    const emitNodes = async (names: string[], options: any, render: NodeRenderers, hint?: (name: string) => void) => {
+        const provider = await getProvider();
+        const found: any[] = [];
+
+        for (const name of names) {
+            const schema = lookupNode(provider, name);
+            if (schema) found.push(schema);
+            else console.error(chalk.red(`Node '${name}' not found.`));
+        }
+
+        if (found.length === 0) {
+            process.exit(1);
+        }
+
+        if (options.json) {
+            const payload = found.map(render.json);
+            console.log(JSON.stringify(names.length === 1 ? payload[0] : payload, null, 2));
+            return;
+        }
+
+        console.log(found.map(options.compact ? render.compact : render.ts).join('\n\n'));
+        if (!options.compact && names.length === 1) {
+            hint?.(found[0].name);
+        }
+    };
+
+    // ── node-info ────────────────────────────────────────────────────────
     program
         .command('node-info')
         .description('Get complete node information as TypeScript code')
-        .argument('<name>', 'Node name (exact, e.g. "googleSheets")')
+        .argument('<names...>', 'One or more node names (exact or fuzzy, e.g. "googleSheets" "gmail")')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
         .option('--compact', 'Compact projection: identity + required params + snippet (token-efficient)')
-        .action(async (name, options) => {
+        .action(async (names: string[], options) => {
             try {
                 await withCustomNodesWarnings();
                 await printCustomNodesDebugIfRequested(options.debug);
 
-                const provider = await getProvider();
-                const schema = provider.getNodeSchema(name);
-                if (schema) {
-                    if (options.json) {
-                        console.log(JSON.stringify(options.compact
-                            ? {
-                                name: schema.name,
-                                type: schema.type,
-                                displayName: schema.displayName,
-                                description: schema.description,
-                                version: schema.version,
-                                requiredFields: [...new Set((schema.schema?.properties || []).filter((p: any) => p.required).map((p: any) => p.name))],
-                            }
-                            : schema, null, 2));
-                    } else if (options.compact) {
-                        console.log(TypeScriptFormatter.generateCompactNodeDoc({
+                await emitNodes(names, options, {
+                    json: (schema) => options.compact
+                        ? {
                             name: schema.name,
                             type: schema.type,
                             displayName: schema.displayName,
                             description: schema.description,
                             version: schema.version,
-                            properties: schema.schema?.properties || [],
-                            parameterGating: schema.parameterGating
-                        }));
-                    } else {
-                        const tsDoc = TypeScriptFormatter.generateCompleteNodeDoc({
-                            name: schema.name,
-                            type: schema.type,
-                            displayName: schema.displayName,
-                            description: schema.description,
-                            version: schema.version,
-                            properties: schema.schema?.properties || [],
-                            metadata: schema.metadata,
-                            parameterGating: schema.parameterGating
-                        });
-                        console.log(tsDoc);
-                    }
-                    if (!options.compact) {
-                        console.error(chalk.cyan('\n💡 Next steps:'));
-                        console.error(chalk.gray(`   - 'node-schema ${name}' for quick TypeScript snippet`));
-                        console.error(chalk.gray(`   - 'guides ${name}' to find usage guides`));
-                        console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
-                    }
-                } else {
-                    console.error(chalk.red(`Node '${name}' not found.`));
-                    process.exit(1);
-                }
+                            requiredFields: [...new Set((schema.schema?.properties || [])
+                                .filter((p: any) => p.required).map((p: any) => p.name))],
+                        }
+                        : schema,
+                    ts: (schema) => TypeScriptFormatter.generateCompleteNodeDoc({
+                        ...formatterInput(schema),
+                        metadata: schema.metadata,
+                        parameterGating: schema.parameterGating,
+                    }),
+                    compact: (schema) => TypeScriptFormatter.generateCompactNodeDoc({
+                        ...formatterInput(schema),
+                        parameterGating: schema.parameterGating,
+                    }),
+                }, (name) => {
+                    console.error(chalk.cyan('\n💡 Next steps:'));
+                    console.error(chalk.gray(`   - 'node-schema ${name}' for quick TypeScript snippet`));
+                    console.error(chalk.gray(`   - 'guides ${name}' to find usage guides`));
+                    console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
+                });
             } catch (error: any) {
                 console.error(chalk.red(error.message));
                 process.exit(1);
             }
         });
 
-    // ── node-schema ───────────────────────────────────────────────────────────
+    // ── node-schema ───────────────────────────────────────────────────
     program
         .command('node-schema')
         .description('Get TypeScript code snippet for a node (quick reference)')
-        .argument('<name>', 'Node name')
+        .argument('<names...>', 'One or more node names')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
         .option('--compact', 'Compact projection: minimal snippet + required fields (token-efficient)')
-        .action(async (name, options) => {
+        .action(async (names: string[], options) => {
             try {
                 await withCustomNodesWarnings();
                 await printCustomNodesDebugIfRequested(options.debug);
 
-                const provider = await getProvider();
-                let schema = provider.getNodeSchema(name);
-
-                if (!schema) {
-                    const searchResults = provider.searchNodes(name, 1);
-                    if (searchResults.length > 0 && ((searchResults[0].relevanceScore || 0) > 80 || searchResults[0].name.toLowerCase() === name.toLowerCase())) {
-                        schema = provider.getNodeSchema(searchResults[0].name);
-                    }
-                }
-
-                if (schema) {
-                    if (options.json) {
+                await emitNodes(names, options, {
+                    json: (schema) => {
                         const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
-                        console.log(JSON.stringify(options.compact
+                        const requiredFields = [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))];
+                        return options.compact
                             ? {
                                 name: schema.name,
                                 type: schema.type,
                                 displayName: schema.displayName,
                                 version: schema.version,
-                                requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))],
+                                requiredFields,
                             }
-                            : {
-                                name: schema.name,
-                                type: schema.type,
-                                displayName: schema.displayName,
-                                description: schema.description,
-                                version: schema.version,
-                                properties: props,
-                                requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
-                            }, null, 2));
-                    } else if (options.compact) {
-                        console.log(TypeScriptFormatter.generateMinimalSnippet({
-                            name: schema.name,
-                            type: schema.type,
-                            displayName: schema.displayName,
-                            version: schema.version,
-                        }));
-                    } else {
-                        const tsSnippet = TypeScriptFormatter.generateNodeSnippet({
-                            name: schema.name,
-                            type: schema.type,
-                            displayName: schema.displayName,
-                            description: schema.description,
-                            version: schema.version,
-                            properties: schema.schema?.properties || []
-                        });
-                        console.log(tsSnippet);
-                    }
-                    if (!options.compact) {
-                        console.error(chalk.cyan(`\n💡 Hint: Use 'node-info ${schema.name}' for complete documentation and examples`));
-                    }
-                } else {
-                    console.error(chalk.red(`Node '${name}' not found.`));
-                    process.exit(1);
-                }
+                            : { ...formatterInput(schema), properties: props, requiredFields };
+                    },
+                    ts: (schema) => TypeScriptFormatter.generateNodeSnippet(formatterInput(schema)),
+                    compact: (schema) => TypeScriptFormatter.generateMinimalSnippet({
+                        name: schema.name,
+                        type: schema.type,
+                        displayName: schema.displayName,
+                        version: schema.version,
+                    }),
+                }, (name) => {
+                    console.error(chalk.cyan(`\n💡 Hint: Use 'node-info ${name}' for complete documentation and examples`));
+                });
             } catch (error: any) {
                 console.error(chalk.red('Error getting schema: ' + error.message));
                 process.exit(1);

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import type { IFolderSession } from '../core/types.js';
 import {
     N8nConfigurationService,
@@ -571,10 +572,59 @@ export class ConfigService {
         return this.findInstanceTarget(this.ensureV4WorkspaceConfig(), nameOrId);
     }
 
+    /**
+     * Zero-config bootstrap: derive the `default` environment from a workspace `.env`.
+     * Only the file is read — ambient process env must not silently become workspace config.
+     */
+    private tryAutoConfigureFromEnv(): IWorkspaceEnvironment | undefined {
+        const envFile = path.join(this.workspaceRoot, '.env');
+        if (!fs.existsSync(envFile)) {
+            return undefined;
+        }
+
+        const env = dotenv.parse(fs.readFileSync(envFile));
+        const host = (env.N8N_HOST || env.N8N_BASE_URL || '').trim();
+        if (!host) {
+            return undefined;
+        }
+
+        const apiKey = (env.N8N_API_KEY || '').trim();
+        const mcpToken = (env.N8N_NATIVE_MCP_TOKEN || '').trim();
+        const mcpUrl = (env.N8N_NATIVE_MCP_URL || '').trim();
+
+        const target = this.ensureEmbeddedInstanceTarget({ name: 'default', url: host });
+        const environment = this.addEnvironment({
+            name: 'default',
+            environmentTarget: target.id,
+            projectId: 'personal',
+            projectName: 'Personal',
+            workflowsPath: 'workflows',
+        });
+
+        if (apiKey) {
+            this.saveWorkspaceEnvironmentApiKey(environment.id, apiKey);
+        }
+
+        if (mcpToken) {
+            this.saveNativeMcpToken(environment.id, mcpToken);
+            this.updateEnvironment(environment.id, {
+                nativeMcp: { enabled: true, level: 2, url: mcpUrl || undefined },
+            });
+        }
+
+        this.pinEnvironment(environment.id);
+        return environment;
+    }
+
     resolveEnvironment(environmentNameOrId?: string): IResolvedWorkspaceEnvironment {
-        const config = this.readWorkspaceConfigFile();
+        let config = this.readWorkspaceConfigFile();
         if (config.environments.length === 0) {
-            throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
+            const autoEnv = this.tryAutoConfigureFromEnv();
+            if (autoEnv) {
+                config = this.readWorkspaceConfigFile();
+            } else {
+                throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
+            }
         }
         const environment = environmentNameOrId
             ? this.findEnvironment(config, environmentNameOrId)
