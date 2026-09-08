@@ -370,6 +370,48 @@ describe('TypeScriptFormatter — nested fixedcollection', () => {
         expect(expanded).toContain('option:');
     });
 
+    test('generateCompactNodeDoc: carries the resource and operation discriminators', () => {
+        // Without them the snippet body was an empty placeholder, so an authoring agent
+        // paid a second full lookup per node and compact cost a round trip.
+        const doc = TypeScriptFormatter.generateCompactNodeDoc({
+            name: 'gmail',
+            type: 'n8n-nodes-base.gmail',
+            displayName: 'Gmail',
+            description: 'Work with Gmail',
+            version: 2.2,
+            properties: [
+                { name: 'resource', type: 'options', options: [{ value: 'message' }, { value: 'draft' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['draft'] } }, options: [{ value: 'create' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['message'] } }, options: [{ value: 'send' }, { value: 'getAll' }] },
+            ],
+        });
+
+        expect(doc).toContain("resource: 'message'");
+        expect(doc).toContain('operation:');
+        expect(doc).not.toContain('/* parameters */');
+    });
+
+    test('generateCompactNodeDoc: unions options across displayOptions variants', () => {
+        // n8n splits `operation` into one property per resource. Reading only the first
+        // advertised draft's values as gmail's whole set, hiding `send`, and an agent
+        // picked a wrong operation on that basis.
+        const doc = TypeScriptFormatter.generateCompactNodeDoc({
+            name: 'gmail',
+            type: 'n8n-nodes-base.gmail',
+            displayName: 'Gmail',
+            description: 'Work with Gmail',
+            version: 2.2,
+            properties: [
+                { name: 'resource', type: 'options', options: [{ value: 'draft' }, { value: 'message' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['draft'] } }, options: [{ value: 'create' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['message'] } }, options: [{ value: 'send' }] },
+            ],
+        });
+
+        expect(doc).toContain('draft: create');
+        expect(doc).toContain('message: send');
+    });
+
     test('mapTypeToTypeScript: resourceLocator produces strict __rl object type', () => {
         const rlProp = {
             name: 'sheetId',

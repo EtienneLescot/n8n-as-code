@@ -277,12 +277,46 @@ ${interfaceBody}
                 lines.push(`//   ... (+${required.length - maxRequired} more required — see node-schema --json)`);
             }
         }
+        // The discriminators an author actually needs. Without them compact is a search
+        // result rather than a schema: a builder reported paying a second full lookup per
+        // node because the snippet body was an empty placeholder.
+        const allProps = (schema.properties || []) as any[];
+        const resources = this.unionOptionValues(allProps, 'resource');
+        const operationsByResource = this.operationsByResource(allProps);
+
+        if (resources.length > 0) {
+            lines.push(`// resource: ${this.compactEnumList(resources.map((value) => ({ value })), maxEnum)}`);
+        }
+        if (operationsByResource.size > 0) {
+            const grouped = [...operationsByResource.entries()];
+            lines.push(grouped.length === 1 && grouped[0][0] === '*'
+                ? `// operation: ${this.compactEnumList(grouped[0][1].map((value) => ({ value })), maxEnum)}`
+                : `// operation, by resource:`);
+            if (grouped.length > 1 || grouped[0][0] !== '*') {
+                for (const [resource, operations] of grouped.slice(0, maxGating)) {
+                    lines.push(`//   ${resource}: ${this.compactEnumList(operations.map((value) => ({ value })), maxEnum)}`);
+                }
+                if (grouped.length > maxGating) {
+                    lines.push(`//   ... (+${grouped.length - maxGating} more resources)`);
+                }
+            }
+        }
+
+        const firstResource = resources[0];
+        const firstOperation = firstResource
+            ? (operationsByResource.get(firstResource) ?? [])[0]
+            : (operationsByResource.get('*') ?? [])[0];
+        const discriminators = [
+            firstResource ? `  resource: '${firstResource}',` : undefined,
+            firstOperation ? `  operation: '${firstOperation}',` : undefined,
+        ].filter(Boolean) as string[];
+
         lines.push(this.generateMinimalSnippet({
             name: schema.name,
             type: schema.type,
             displayName: schema.displayName,
             version: schema.version,
-        }));
+        }, discriminators));
         const gating = schema.parameterGating || [];
         if (gating.length > 0) {
             lines.push(`// gating flags (set true only when using the gated params/connection):`);
@@ -301,6 +335,46 @@ ${interfaceBody}
         return oneLine.length > n ? oneLine.slice(0, n - 1) + '…' : oneLine;
     }
 
+    /**
+     * Union the options of every property sharing a name.
+     *
+     * n8n splits one logical parameter into several properties gated by `displayOptions`,
+     * so reading only the first advertises one variant's values as if they were the whole
+     * set — compact told an agent `gmail` could only `create|delete|get|getAll`, hiding
+     * `send`, and it picked a wrong operation on that basis.
+     */
+    private static unionOptionValues(allProps: any[], name: string): string[] {
+        const seen = new Set<string>();
+        for (const prop of allProps) {
+            if (prop.name !== name || !Array.isArray(prop.options)) continue;
+            for (const option of prop.options) {
+                const value = option?.value ?? option?.name;
+                if (value !== undefined) seen.add(String(value));
+            }
+        }
+        return [...seen];
+    }
+
+    /** Operations grouped by the resource that gates them, so a caller can pick a valid pair. */
+    private static operationsByResource(allProps: any[]): Map<string, string[]> {
+        const byResource = new Map<string, string[]>();
+        for (const prop of allProps) {
+            if (prop.name !== 'operation' || !Array.isArray(prop.options)) continue;
+            const resources: string[] = prop.displayOptions?.show?.resource ?? ['*'];
+            const values = prop.options
+                .map((o: any) => o?.value ?? o?.name)
+                .filter((v: unknown) => v !== undefined)
+                .map(String);
+            for (const resource of resources) {
+                byResource.set(String(resource), [
+                    ...(byResource.get(String(resource)) ?? []),
+                    ...values,
+                ]);
+            }
+        }
+        return byResource;
+    }
+
     private static compactEnumList(options: any[], max: number): string {
         const values = options.map((o: any) => String(o.value ?? o.name));
         return values.length > max
@@ -316,19 +390,23 @@ ${interfaceBody}
         type: string;
         displayName: string;
         version: number | number[];
-    }): string {
+    }, bodyLines: string[] = []): string {
         const latestVersion = Array.isArray(schema.version) 
             ? Math.max(...schema.version) 
             : schema.version;
 
         const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
 
+        const body = bodyLines.length > 0
+            ? `\n${bodyLines.join('\n')}\n`
+            : ' /* parameters */ ';
+
         return `@node({
   name: '${schema.displayName}',
   type: '${schema.type}',
   version: ${latestVersion}
 })
-${nodeProp} = { /* parameters */ };`;
+${nodeProp} = {${body}};`;
     }
 
     /**
