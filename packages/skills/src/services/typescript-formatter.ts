@@ -249,11 +249,20 @@ ${interfaceBody}
             aiConnectionType: string | null;
         }>;
     }, opts: { maxDesc?: number; maxEnum?: number; maxRequired?: number; maxGating?: number; maxShape?: number } = {}): string {
-        const maxDesc = opts.maxDesc ?? 300;
-        const maxEnum = opts.maxEnum ?? 10;
-        const maxRequired = opts.maxRequired ?? 15;
-        const maxGating = opts.maxGating ?? 10;
-        const maxShape = opts.maxShape ?? 240;
+        // A cap that is NaN, Infinity or negative must not silently reshape the output.
+        // `maxRequired: NaN` dropped every required line AND suppressed the "+N more"
+        // marker, so the reader could not tell anything was missing; a negative cap fed
+        // `slice(0, -3)` and trimmed from the wrong end. Anything that is not a finite
+        // non-negative number falls back to the default.
+        const cap = (value: number | undefined, fallback: number): number =>
+            typeof value === 'number' && Number.isFinite(value) && value >= 0
+                ? Math.floor(value)
+                : fallback;
+        const maxDesc = cap(opts.maxDesc, 300);
+        const maxEnum = cap(opts.maxEnum, 10);
+        const maxRequired = cap(opts.maxRequired, 15);
+        const maxGating = cap(opts.maxGating, 10);
+        const maxShape = cap(opts.maxShape, 240);
         const latestVersion = Array.isArray(schema.version)
             ? Math.max(...schema.version)
             : schema.version;
@@ -361,6 +370,9 @@ ${interfaceBody}
 
     private static truncate(s: string, n: number): string {
         const oneLine = s.replace(/\s+/g, ' ').trim();
+        // n === 0 means "no room": return nothing rather than slice(0, -1), which kept
+        // all but the last character and read as if no cap had been applied.
+        if (n <= 0) return '';
         return oneLine.length > n ? oneLine.slice(0, n - 1) + '…' : oneLine;
     }
 

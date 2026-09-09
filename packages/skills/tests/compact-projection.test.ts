@@ -69,6 +69,34 @@ describe('compact projection (universal, no per-node heuristics)', () => {
         expect(compact).toMatch('+4 more flags');
     });
 
+    /**
+     * A cap that is not a finite non-negative number must not reshape the output silently.
+     * `maxRequired: NaN` used to drop every required line AND suppress the "+N more"
+     * marker, so a caller could not tell anything was missing; a negative cap fed
+     * `slice(0, -3)` and trimmed from the wrong end; `maxDesc: 0` printed all but the last
+     * character of the description.
+     */
+    test.each([
+        ['NaN', Number.NaN],
+        ['Infinity', Number.POSITIVE_INFINITY],
+        ['negative', -3],
+    ])('a %s cap falls back to the default instead of truncating silently', (_label, value) => {
+        const compact = TypeScriptFormatter.generateCompactNodeDoc(bigSchema as any, { maxRequired: value as number });
+        const withDefaults = TypeScriptFormatter.generateCompactNodeDoc(bigSchema as any);
+        expect(compact).toEqual(withDefaults);
+    });
+
+    test('a zero cap drops everything but still says so', () => {
+        const compact = TypeScriptFormatter.generateCompactNodeDoc(bigSchema as any, { maxRequired: 0, maxDesc: 0 });
+        // Assert on the required entries themselves: the gating-flag block below uses the
+        // same `//   - ` prefix, so a prefix match would pass for the wrong reason.
+        expect(compact).not.toMatch('param0');
+        expect(compact).not.toMatch('param1');
+        // The reader must be able to tell the list was emptied, not that it was empty.
+        expect(compact).toMatch('more required');
+        expect(compact).not.toMatch('Consume the Gmail API');
+    });
+
     test('custom caps override the defaults', () => {
         const manyRequired = {
             ...bigSchema,
