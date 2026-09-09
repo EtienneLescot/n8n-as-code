@@ -286,11 +286,17 @@ ${interfaceBody}
             }
 
             // A bare type name is not enough to write one of these, but the full shape can
-            // run to thousands of characters and compact exists to be small — name the
-            // shape, cap it, and point at the projection that carries the rest.
-            required.push(STRUCTURED_TYPES.has(type)
-                ? `//   - ${p.name}: ${this.truncate(this.mapTypeToTypeScript(p), maxShape)}`
-                : `//   - ${p.name}: ${p.type}`);
+            // run to thousands of characters and compact exists to be small — under the cap
+            // print the shape; over it, name the type and say where the rest went, the way
+            // every other cap here does. A mid-token cut is neither small nor usable.
+            if (STRUCTURED_TYPES.has(type)) {
+                const shape = this.mapTypeToTypeScript(p);
+                required.push(shape.length > maxShape
+                    ? `//   - ${p.name}: ${p.type} (shape > ${maxShape} chars — see node-info --json)`
+                    : `//   - ${p.name}: ${shape}`);
+            } else {
+                required.push(`//   - ${p.name}: ${p.type}`);
+            }
         }
         if (required.length > 0) {
             lines.push(`// required:`);

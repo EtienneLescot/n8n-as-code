@@ -182,8 +182,16 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     };
     const getRegistry = async (): Promise<WorkflowRegistry> => {
         if (!registry) {
-            const { WorkflowRegistry } = await import('../services/workflow-registry.js');
-            registry = new WorkflowRegistry(join(assetsDir, 'workflows-index.json'));
+            try {
+                const { WorkflowRegistry } = await import('../services/workflow-registry.js');
+                registry = new WorkflowRegistry(join(assetsDir, 'workflows-index.json'));
+            } catch (error: any) {
+                // The registry says precisely what is missing; without this boundary that
+                // message escaped as a raw unhandled-rejection stack from every examples
+                // subcommand and batch examples-* lookup.
+                console.error(chalk.red(error.message));
+                process.exit(1);
+            }
         }
         return registry;
     };
@@ -380,6 +388,11 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
             process.exitCode = 1;
         }
 
+        // stderr, so --json on stdout stays parseable; compact opts out of hints entirely.
+        if (!options.compact && names.length === 1) {
+            hint?.(found[0].name);
+        }
+
         if (options.json) {
             const payload = found.map(render.json);
             console.log(JSON.stringify(names.length === 1 ? payload[0] : payload, null, 2));
@@ -387,9 +400,6 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
         }
 
         console.log(found.map(options.compact ? render.compact : render.ts).join('\n\n'));
-        if (!options.compact && names.length === 1) {
-            hint?.(found[0].name);
-        }
     };
 
     // ── node-info ────────────────────────────────────────────────────────
