@@ -207,8 +207,25 @@ export class AiContextGenerator {
     options: { cliCommandOverride?: string; managerCommandOverride?: string; cliVersion?: string; nativeMcp?: NativeMcpLevelContext } = {},
     projectRoot?: string,
   ): string {
-    const { cliCmd, skillsCmd } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
+    const { cliCmd, skillsCmd, source } = this.getCommandRefs(distTag, options.cliCommandOverride, projectRoot);
     const managerCmd = resolveN8nManagerCommand(distTag, options.managerCommandOverride, process.env);
+    // npx pays npm's own startup on every invocation before any work starts. The cost is
+    // fixed rather than proportional to the package, and no npx flag avoids it, so the
+    // advice is to install once. Deliberately unquantified: the figure is machine-specific.
+    // Only shown when we actually fell back to the published npx form.
+    const installOnce = source === 'published'
+      ? [
+        ``,
+        `> Every \`npx\` call above pays npm's own startup before doing any work. That cost is`,
+        `> fixed, independent of the package, and no npx flag avoids it. Installing once removes it`,
+        `> from every later command:`,
+        `>`,
+        '> ```bash',
+        `> npm i -g n8nac${distTag ? `@${distTag}` : ''}`,
+        `> n8nac update-ai   # regenerates this file with the direct, faster command form`,
+        '> ```',
+      ]
+      : [];
     const versionStamp = options.cliVersion ? [`<!-- n8nac-version: ${options.cliVersion} -->`, ``] : [];
     const levelStamp = options.nativeMcp && Number.isInteger(options.nativeMcp.level)
       ? [`<!-- n8nac-mcp-level: ${options.nativeMcp.level} -->`, ``]
@@ -224,6 +241,7 @@ export class AiContextGenerator {
       `- n8nac command: \`${cliCmd}\``,
       `- n8n-manager command: \`${managerCmd}\``,
       `- n8n knowledge command: \`${skillsCmd}\``,
+      ...installOnce,
       ``,
       `Run workspace commands from the current Git worktree root. Do not \`cd\` into the n8n-as-code source repository, n8n-manager source repository, plugin directory, or package directory to run \`${cliCmd} workspace ...\`, \`${cliCmd} list\`, \`${cliCmd} pull\`, \`${cliCmd} push\`, or \`${cliCmd} update-ai\`.`,
       ``,

@@ -9,6 +9,12 @@
   "license": "Apache-2.0",
   "homepage": "https://n8nascode.dev/docs/usage/claude-plugin/",
   "repository": "https://github.com/EtienneLescot/n8n-as-code",
+  "mcpServers": {
+      "n8n-as-code": {
+          "command": "npx",
+          "args": ["-y", "@n8n-as-code/mcp"]
+      }
+  },
   "skills": "./skills/",
   "keywords": [
     "n8n",

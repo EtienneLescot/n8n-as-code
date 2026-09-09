@@ -1,8 +1,9 @@
-import { NodeSchemaProvider } from '../src/services/node-schema-provider';
+import { NodeSchemaProvider, resolveNode, suggestNodes } from '../src/services/node-schema-provider';
 import { TypeScriptFormatter } from '../src/services/typescript-formatter';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 
 describe('NodeSchemaProvider', () => {
     let tempDir: string;
@@ -368,5 +369,151 @@ describe('TypeScriptFormatter — nested fixedcollection', () => {
         expect(expanded).toContain('values: [');
         // The option field inside fieldOptions must appear
         expect(expanded).toContain('option:');
+    });
+
+    test('generateCompactNodeDoc: carries the resource and operation discriminators', () => {
+        // Without them the snippet body was an empty placeholder, so an authoring agent
+        // paid a second full lookup per node and compact cost a round trip.
+        const doc = TypeScriptFormatter.generateCompactNodeDoc({
+            name: 'gmail',
+            type: 'n8n-nodes-base.gmail',
+            displayName: 'Gmail',
+            description: 'Work with Gmail',
+            version: 2.2,
+            properties: [
+                { name: 'resource', type: 'options', options: [{ value: 'message' }, { value: 'draft' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['draft'] } }, options: [{ value: 'create' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['message'] } }, options: [{ value: 'send' }, { value: 'getAll' }] },
+            ],
+        });
+
+        expect(doc).toContain("resource: 'message'");
+        expect(doc).toContain('operation:');
+        expect(doc).not.toContain('/* parameters */');
+    });
+
+    test('generateCompactNodeDoc: unions options across displayOptions variants', () => {
+        // n8n splits `operation` into one property per resource. Reading only the first
+        // advertised draft's values as gmail's whole set, hiding `send`, and an agent
+        // picked a wrong operation on that basis.
+        const doc = TypeScriptFormatter.generateCompactNodeDoc({
+            name: 'gmail',
+            type: 'n8n-nodes-base.gmail',
+            displayName: 'Gmail',
+            description: 'Work with Gmail',
+            version: 2.2,
+            properties: [
+                { name: 'resource', type: 'options', options: [{ value: 'draft' }, { value: 'message' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['draft'] } }, options: [{ value: 'create' }] },
+                { name: 'operation', type: 'options', displayOptions: { show: { resource: ['message'] } }, options: [{ value: 'send' }] },
+            ],
+        });
+
+        expect(doc).toContain('draft: create');
+        expect(doc).toContain('message: send');
+    });
+
+    test('mapTypeToTypeScript: resourceLocator produces strict __rl object type', () => {
+        const rlProp = {
+            name: 'sheetId',
+            type: 'resourceLocator',
+        };
+        const tsType = (TypeScriptFormatter as any).mapTypeToTypeScript(rlProp);
+        expect(tsType).toContain('__rl: true');
+        expect(tsType).toContain('value: string');
+        expect(tsType).toContain('mode:');
+    });
+
+    test('generateDefaultValue: resourceLocator produces __rl object structure', () => {
+        const rlProp = {
+            name: 'sheetId',
+            type: 'resourceLocator',
+        };
+        const defVal = (TypeScriptFormatter as any).generateDefaultValue(rlProp);
+        expect(defVal).toContain('__rl: true');
+        expect(defVal).toContain("mode: 'list'");
+    });
+
+});
+
+/**
+ * `resolveNode` decides what `n8nac skills node-info` and the MCP `get_n8n_node_info` treat
+ * as "the node you asked for". It used to gate the fuzzy fallback on `searchNodes`'
+ * relevance score, which is unbounded and not a similarity measure: `zzzznotanode` scored
+ * 133 against `vectorStoreWeaviate` and sailed past the threshold, so every miss became a
+ * confident wrong node. It is judged on the name now.
+ */
+const ontology = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../src/assets/n8n-nodes-technical.json',
+);
+const describeWithOntology = fs.existsSync(ontology) ? describe : describe.skip;
+
+describeWithOntology('resolveNode', () => {
+    let real: NodeSchemaProvider;
+    beforeAll(() => { real = new NodeSchemaProvider(ontology); });
+
+    test.each([
+        ['gmail', 'gmail'],
+        ['googleSheets', 'googleSheets'],
+        ['webhook', 'webhook'],
+        // The display name and the camelCase spelling normalize to the same thing.
+        ['sendEmail', 'emailSend'],
+    ])('resolves %s exactly', (query, expected) => {
+        const resolution = resolveNode(real, query);
+        expect(resolution?.matchedName).toBe(expected);
+        expect(resolution?.exact).toBe(true);
+    });
+
+    test.each([
+        ['slackk', 'slack'],            // typo
+        ['httpReq', 'httpRequest'],     // abbreviation
+        ['sheets', 'googleSheets'],     // partial name, shortest candidate wins
+        ['postgresql', 'postgres'],     // the search engine ranked vectorStorePGVector first
+    ])('resolves %s to %s and says it was inexact', (query, expected) => {
+        const resolution = resolveNode(real, query);
+        expect(resolution?.matchedName).toBe(expected);
+        expect(resolution?.exact).toBe(false);
+    });
+
+    test.each(['zzzznotanode', 'xyzzy-plugh'])(
+        'refuses to invent a node for %s',
+        (query) => {
+            expect(resolveNode(real, query)).toBeUndefined();
+        },
+    );
+
+    test('a miss still offers somewhere to go next', () => {
+        expect(suggestNodes(real, 'zzzznotanode').length).toBeGreaterThan(0);
+    });
+
+    test('a prefixed type name is the same node, not a fuzzy hit', () => {
+        const resolution = resolveNode(real, 'n8n-nodes-base.googleSheets');
+        expect(resolution?.exact).toBe(true);
+    });
+
+    // The guard is the property itself: a display name is one of the node's official
+    // spellings, so resolving by it must land on that node — exactly, not on the parent
+    // node whose name it contains (`Slack Trigger` -> `slack`) and not on a miss.
+    test('every display name in the ontology resolves to its own node', () => {
+        const ontologyJson = JSON.parse(fs.readFileSync(ontology, 'utf-8'));
+        // Two display names are each borne by two nodes; resolving by them may return either.
+        const ownersByDisplayName = new Map<string, string[]>();
+        for (const node of Object.values<any>(ontologyJson.nodes)) {
+            ownersByDisplayName.set(node.displayName,
+                [...(ownersByDisplayName.get(node.displayName) || []), node.name]);
+        }
+        const problems: string[] = [];
+        for (const [displayName, owners] of ownersByDisplayName) {
+            const resolution = resolveNode(real, displayName);
+            if (!resolution) {
+                problems.push(`${displayName}: not found`);
+            } else if (!resolution.exact) {
+                problems.push(`${displayName}: inexact (${resolution.matchedName})`);
+            } else if (!owners.includes(resolution.matchedName)) {
+                problems.push(`${displayName}: resolved to ${resolution.matchedName}`);
+            }
+        }
+        expect(problems.join(' | ')).toBe('');
     });
 });

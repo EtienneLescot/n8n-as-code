@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2024-01-01T00:00:00.000Z",
+  "repository": "nusquama/n8nworkflows.xyz",
+  "sourceCommit": "testcommit",
+  "totalWorkflows": 2,
+  "workflows": [
+    {
+      "id": "916",
+      "name": "Slack Alert Workflow",
+      "slug": "slack-alert-workflow",
+      "description": "Post an alert message to a Slack channel on a schedule.",
+      "workflowPath": "workflows/slack-alert-workflow/workflow.json",
+      "workflowFile": "workflow.json",
+      "nodeTypes": [
+        "n8n-nodes-base.slack",
+        "n8n-nodes-base.scheduleTrigger"
+      ],
+      "categories": [
+        "notification"
+      ],
+      "tags": [
+        "slack",
+        "alert"
+      ],
+      "author": "n8n-team"
+    },
+    {
+      "id": "917",
+      "name": "Gmail Digest",
+      "slug": "gmail-digest",
+      "description": "Summarise unread Gmail messages into a daily digest.",
+      "workflowPath": "workflows/gmail-digest/workflow.json",
+      "workflowFile": "workflow.json",
+      "nodeTypes": [
+        "n8n-nodes-base.gmail"
+      ],
+      "categories": [
+        "email"
+      ],
+      "tags": [
+        "gmail",
+        "digest"
+      ],
+      "author": "n8n-team"
+    }
+  ]
+}

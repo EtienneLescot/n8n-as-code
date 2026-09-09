@@ -66,21 +66,13 @@ export class WorkflowRegistry {
         }
 
         if (!indexPath || !existsSync(indexPath)) {
-            // Return empty index if not found to prevent crash, but log error
-            console.error(`Workflow index not found (searched ${indexPath || 'none'}). AI workflow search will be disabled.`);
-            this.index = {
-                generatedAt: new Date().toISOString(),
-                repository: '',
-                totalWorkflows: 0,
-                workflows: []
-            };
-            this.workflowsById = new Map();
-            this.searchIndex = new Index({
-                tokenize: 'forward',
-                resolution: 9,
-                cache: true,
-            });
-            return;
+            // Returning an empty index here made a missing asset indistinguishable from
+            // "no matching workflows": `examples search` answered [] with a success exit
+            // code, and a long-lived MCP server memoized that emptiness for its lifetime.
+            throw new Error(
+                `Workflow example index not found (searched ${indexPath || 'none'}). `
+                + 'Pass its path explicitly, or rebuild the package assets.',
+            );
         }
 
         const raw = readFileSync(indexPath, 'utf-8');

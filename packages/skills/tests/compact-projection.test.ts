@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { TypeScriptFormatter } from '../src/services/typescript-formatter';
+import { WorkflowValidator } from '../src/services/workflow-validator.js';
 
 const bigSchema = {
     name: 'gmailTool',
@@ -79,4 +83,111 @@ describe('compact projection (universal, no per-node heuristics)', () => {
         expect(compact).not.toMatch('req3');
         expect(compact).toMatch('+7 more required');
     });
+});
+
+/**
+ * The compact projection is the cheapest thing an agent can read about a node, so anything
+ * it prints is taken as authorable. It has twice shipped pairs n8n rejects: first by
+ * reading one `displayOptions` variant's enum as the whole set, then by grouping operations
+ * on `resource` alone while the validator also weighs `@version`, `source` and
+ * `authentication`. Both were found by a builder mid-benchmark rather than by a test.
+ *
+ * So this checks the property directly, against the real bundled ontology and the real
+ * validator: every (resource, operation) pair compact prints must survive validation.
+ */
+const ontologyPath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../src/assets/n8n-nodes-technical.json',
+);
+const describeWithOntology = fs.existsSync(ontologyPath) ? describe : describe.skip;
+
+describeWithOntology('compact never advertises a pair the validator rejects', () => {
+    // `//   <resource>[ (<gate>=<value>, ...)]: op | op | ...`
+    const groupLine = /^\/\/   ([^:(]+?)(?: \(([^)]*)\))?: (.+)$/;
+
+    test('every printed (resource, operation) pair validates', async () => {
+        const ontology = JSON.parse(fs.readFileSync(ontologyPath, 'utf8'));
+        const validator = new WorkflowValidator(ontologyPath);
+        const rejected: string[] = [];
+        let checked = 0;
+
+        for (const node of Object.values<any>(ontology.nodes)) {
+            if (!node.type) continue;
+            const doc = TypeScriptFormatter.generateCompactNodeDoc({
+                name: node.name,
+                type: node.type,
+                displayName: node.displayName,
+                description: node.description,
+                version: node.version,
+                properties: node.schema?.properties ?? [],
+                parameterGating: node.metadata?.parameterGating,
+            });
+
+            const lines = doc.split('\n');
+            const start = lines.indexOf('// operation, by resource:');
+            if (start === -1) continue;
+            const version = Array.isArray(node.version) ? Math.max(...node.version) : node.version;
+
+            for (let i = start + 1; i < lines.length; i++) {
+                const match = groupLine.exec(lines[i]);
+                if (!match) break;
+                const [, resource, gates, operations] = match;
+                // Truncation markers are not values.
+                const values = operations.split(' | ')
+                    .filter((value) => !value.startsWith('...') && !value.startsWith('+'));
+                const gateParams = Object.fromEntries(
+                    (gates ? gates.split(', ') : []).map((gate) => {
+                        const [key, value] = gate.split('=');
+                        return [key, value.split('|')[0]];
+                    }),
+                );
+
+                for (const operation of values) {
+                    checked++;
+                    const result = await validator.validateWorkflow({
+                        nodes: [{
+                            id: '1',
+                            name: 'N',
+                            type: node.type,
+                            typeVersion: version,
+                            position: [0, 0],
+                            // `*` means the operation is not gated on a resource at all.
+                            parameters: {
+                                ...(resource === '*' ? {} : { resource }),
+                                operation,
+                                ...gateParams,
+                            },
+                        }],
+                        connections: {},
+                    });
+                    const fatal = result.errors.filter(
+                        (e: any) => e.path?.endsWith('.operation') || e.path?.endsWith('.resource'),
+                    );
+                    if (fatal.length > 0) {
+                        rejected.push(`${node.name} v${version} ${lines[i].trim()} -> ${operation}: ${fatal[0].message}`);
+                    }
+                }
+            }
+        }
+
+        expect(checked).toBeGreaterThan(1000);
+        expect(rejected).toEqual([]);
+    }, 120_000);
+
+    test('compact stays bounded even for the widest nodes', () => {
+        const ontology = JSON.parse(fs.readFileSync(ontologyPath, 'utf8'));
+        const sizes = Object.values<any>(ontology.nodes).map((node) =>
+            TypeScriptFormatter.generateCompactNodeDoc({
+                name: node.name,
+                type: node.type,
+                displayName: node.displayName,
+                description: node.description,
+                version: node.version,
+                properties: node.schema?.properties ?? [],
+                parameterGating: node.metadata?.parameterGating,
+            }).length,
+        );
+        // Carrying the discriminators is worth bytes; carrying the whole schema is not.
+        expect(Math.max(...sizes)).toBeLessThan(2500);
+    }, 60_000);
 });

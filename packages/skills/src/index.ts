@@ -1,5 +1,5 @@
 // Library Exports for Consumers
-export { NodeSchemaProvider } from './services/node-schema-provider.js';
+export { NodeSchemaProvider, resolveNode, suggestNodes } from './services/node-schema-provider.js';
 export { AiContextGenerator } from './services/ai-context-generator.js';
 export {
   getN8nacDevConfigFilenames,
@@ -10,6 +10,9 @@ export {
 export { WorkflowValidator } from './services/workflow-validator.js';
 export { DocsProvider } from './services/docs-provider.js';
 export { KnowledgeSearch } from './services/knowledge-search.js';
+export { WorkflowRegistry } from './services/workflow-registry.js';
+export { resolveSkillsAssetsDir } from './services/assets-dir.js';
+export { resolveCustomNodesConfig, type CustomNodesResolution } from './services/custom-nodes-config.js';
 export { TypeScriptFormatter } from './services/typescript-formatter.js';
 
 // CLI Command Registration (used by unified n8nac CLI)

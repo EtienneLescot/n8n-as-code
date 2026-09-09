@@ -82,6 +82,49 @@ describe('TypeScriptParser – AST value extraction', () => {
             expect(ast.nodes[0].parameters.values).toEqual([1, 2, 3]);
         });
 
+        it('folds concatenated string literals', async () => {
+            const parser = new TypeScriptParser();
+            const ast = await parser.parseCode(makeWorkflow(
+                `{ text: 'You are a triage agent. ' + 'Sort the inbox by urgency.' }`,
+            ));
+            expect(ast.nodes[0].parameters.text)
+                .toBe('You are a triage agent. Sort the inbox by urgency.');
+        });
+
+        it('folds a chain of concatenated literals across lines', async () => {
+            const parser = new TypeScriptParser();
+            const ast = await parser.parseCode(makeWorkflow(
+                `{ text: 'line one ' +
+'line two ' +
+'line three' }`,
+            ));
+            expect(ast.nodes[0].parameters.text).toBe('line one line two line three');
+        });
+
+        it('folds mixed string and number concatenation like JavaScript does', async () => {
+            const parser = new TypeScriptParser();
+            const ast = await parser.parseCode(makeWorkflow(`{ text: 'v' + 2 }`));
+            expect(ast.nodes[0].parameters.text).toBe('v2');
+        });
+
+        it('adds numeric literals rather than concatenating them', async () => {
+            const parser = new TypeScriptParser();
+            const ast = await parser.parseCode(makeWorkflow(`{ limit: 20 + 5 }`));
+            expect(ast.nodes[0].parameters.limit).toBe(25);
+        });
+
+        it('unwraps parenthesized concatenation', async () => {
+            const parser = new TypeScriptParser();
+            const ast = await parser.parseCode(makeWorkflow(`{ text: ('a' + 'b') }`));
+            expect(ast.nodes[0].parameters.text).toBe('ab');
+        });
+
+        it('still rejects concatenation with a non-literal operand', async () => {
+            const parser = new TypeScriptParser();
+            await expect(parser.parseCode(makeWorkflow(`{ text: 'prefix' + someVar }`)))
+                .rejects.toThrow(/someVar/);
+        });
+
         it('parses nested object literals', async () => {
             const parser = new TypeScriptParser();
             const ast = await parser.parseCode(makeWorkflow(`{ options: { timeout: 5000, retries: 3 } }`));

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import { ConfigService } from '../../src/services/config-service.js';
@@ -375,5 +375,86 @@ describe('ConfigService V4 workspace environments', () => {
         expect(context.environmentId).toBe(prod.id);
         expect(context.host).toBe('https://prod.example.test');
         expect(context.workflowsPath).toBe(path.join(workspaceRoot, 'workflows/prod'));
+    });
+
+    it('derives the default workspace environment from .env when unconfigured', () => {
+        writeFileSync(path.join(workspaceRoot, '.env'), [
+            'N8N_HOST=https://auto.example.test',
+            'N8N_API_KEY=test-api-key-123',
+            'N8N_NATIVE_MCP_TOKEN=test-mcp-token-456',
+        ].join('\n'));
+
+        const configService = new ConfigService(workspaceRoot);
+        const resolved = configService.resolveEnvironment();
+
+        expect(resolved).toMatchObject({
+            environmentName: 'default',
+            host: 'https://auto.example.test',
+            apiKeyAvailable: true,
+            nativeMcp: {
+                enabled: true,
+                level: 2,
+            },
+        });
+    });
+
+    it('persists nothing when it derives an environment from .env', () => {
+        // resolveEnvironment is a read with call sites as incidental as a VS Code tree
+        // refresh. It must not write config, and must not copy the API key or the native
+        // MCP token into the global secret store.
+        writeFileSync(path.join(workspaceRoot, '.env'), [
+            'N8N_HOST=https://ephemeral.example.test',
+            'N8N_API_KEY=should-not-be-stored',
+            'N8N_NATIVE_MCP_TOKEN=should-not-be-stored-either',
+        ].join('\n'));
+
+        const configService = new ConfigService(workspaceRoot);
+        configService.resolveEnvironment();
+
+        expect(existsSync(path.join(workspaceRoot, 'n8nac-config.json'))).toBe(false);
+        expect(configService.listEnvironments()).toHaveLength(0);
+    });
+
+    it('refuses a named environment the .env cannot be', () => {
+        // A `.env` defines exactly one environment. Answering to any name meant
+        // `--env prod` reported success against the `.env` host, and the caller believed
+        // it had switched instance.
+        writeFileSync(path.join(workspaceRoot, '.env'), 'N8N_HOST=https://only.example.test\n');
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(configService.resolveEnvironment('default').host).toBe('https://only.example.test');
+        expect(() => configService.resolveEnvironment('prod')).toThrow(/'prod' does not exist/);
+    });
+
+    it('serves the native MCP token the .env carries, since nothing stored it', () => {
+        // `env status` read the token flag off the derived environment and the token itself
+        // off the secret store, which has no entry for an environment that persists nothing.
+        writeFileSync(path.join(workspaceRoot, '.env'), [
+            'N8N_HOST=https://token.example.test',
+            'N8N_NATIVE_MCP_TOKEN=derived-token-789',
+        ].join('\n'));
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(configService.resolveEnvironment().nativeMcp?.tokenConfigured).toBe(true);
+        expect(configService.getNativeMcpToken()).toBe('derived-token-789');
+    });
+
+    it("ignores a bare N8N_HOST, n8n's server bind variable rather than a client URL", () => {
+        // A stock n8n docker-compose .env carries `N8N_HOST=localhost`. Deriving an
+        // environment from it would fail later with no explanation.
+        writeFileSync(path.join(workspaceRoot, '.env'), 'N8N_HOST=localhost:5678\n');
+
+        const configService = new ConfigService(workspaceRoot);
+
+        expect(() => configService.resolveEnvironment()).toThrow(/No workspace environment is configured/);
+        expect(configService.hasResolvableEnvironment()).toBe(false);
+    });
+
+    it('reports a .env-derived environment as resolvable so command gates let it through', () => {
+        writeFileSync(path.join(workspaceRoot, '.env'), 'N8N_HOST=https://gate.example.test\n');
+
+        expect(new ConfigService(workspaceRoot).hasResolvableEnvironment()).toBe(true);
     });
 });

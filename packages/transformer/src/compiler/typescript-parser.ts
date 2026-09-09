@@ -483,6 +483,7 @@ export class TypeScriptParser {
      * literals, array literals, no-substitution template literals, and
      * negative number literals.
      *
+     * Concatenation of string/number literals with `+` is constant-folded.
      * For any other expression (function calls, identifiers, template
      * expressions with substitutions, etc.) a clear error is thrown.
      * The parser is intentionally static — the workflow file is TypeScript
@@ -522,6 +523,35 @@ export class TypeScriptParser {
                     `[n8n-as-code] Cannot statically evaluate prefix expression ` +
                     `"${node.getText()}" in a node parameter. ` +
                     `Only literal values are supported.`
+                );
+            }
+
+            // ── Parenthesized expressions  (('a' + 'b')) ─────────────────
+            case SyntaxKind.ParenthesizedExpression:
+                return this.extractValueFromASTNode((node as any).getExpression());
+
+            // ── Literal concatenation  ('long ' + 'prompt') ──────────────
+            // Splitting a long system prompt across lines with `+` is the natural
+            // way to write one; both operands are constants, so fold them here
+            // instead of making the author reach for a template literal.
+            case SyntaxKind.BinaryExpression: {
+                const binary = node as any;
+                if (binary.getOperatorToken().getKind() === SyntaxKind.PlusToken) {
+                    const left = this.extractValueFromASTNode(binary.getLeft());
+                    const right = this.extractValueFromASTNode(binary.getRight());
+                    const isFoldable = (value: unknown) =>
+                        typeof value === 'string' || typeof value === 'number';
+                    if (isFoldable(left) && isFoldable(right)) {
+                        return typeof left === 'number' && typeof right === 'number'
+                            ? left + right
+                            : `${left}${right}`;
+                    }
+                }
+                throw new Error(
+                    `[n8n-as-code] Cannot statically evaluate expression ` +
+                    `"${node.getText().substring(0, 80)}" in a node parameter.\n` +
+                    `Only literal values, and concatenation of string or number ` +
+                    `literals with \`+\`, are supported.`
                 );
             }
 

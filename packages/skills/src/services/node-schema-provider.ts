@@ -502,3 +502,120 @@ export class NodeSchemaProvider {
         }));
     }
 }
+
+export interface NodeResolution {
+    schema: any;
+    /** The node's real name, which differs from the query when it was matched by search. */
+    matchedName: string;
+    /** False when the query only matched through search, so callers can say so. */
+    exact: boolean;
+}
+
+/**
+ * Compare two node names the way a human would: `n8n-nodes-base.googleSheets`,
+ * `google sheets` and `googleSheets` are all the same node. Only a real package
+ * prefix is stripped — a dotted display name (`Monday.com`) is not a prefix, and
+ * reducing it to its TLD made it match nothing.
+ */
+function normalizeNodeName(name: string): string {
+    return name.replace(/^(?:@[\w-]+\/)?[\w-]*n8n-nodes[\w-]*\./, '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+/** Levenshtein distance. Only used on short node names, so the plain O(n*m) table is fine. */
+function editDistance(a: string, b: string): number {
+    let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+        const current = [i];
+        for (let j = 1; j <= b.length; j++) {
+            current[j] = Math.min(
+                previous[j] + 1,
+                current[j - 1] + 1,
+                previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+            );
+        }
+        previous = current;
+    }
+    return previous[b.length];
+}
+
+/**
+ * Whether a search hit is plausibly the node the caller named.
+ *
+ * A typo (`slackk`), an abbreviation (`httpReq`, `sheets`) and the node's display name
+ * (`Slack Trigger`, `Send Email`) are all the same node; a name that shares nothing with
+ * the candidate is not, however highly the search engine ranked it. The containment
+ * channel only runs from the query to the candidate: a candidate whose name is contained
+ * in the query is a different node — the parent (`slack` for `Slack Trigger`), not a match.
+ */
+function isSameNodeName(query: string, hit: { name: string; displayName?: string }): boolean {
+    const q = normalizeNodeName(query);
+    const name = normalizeNodeName(hit.name);
+    // The display name is the node's other official spelling, so it matches exactly, not fuzzily.
+    if (q === name || (hit.displayName && q === normalizeNodeName(hit.displayName))) return true;
+    // A 3-letter substring matches half the ontology; 4 is where containment starts meaning something.
+    if (q.length >= 4 && name.includes(q)) return true;
+    return q.length >= 5 && editDistance(q, name) <= 2;
+}
+
+/** Whether the query is one of the node's official spellings (its name or its display name). */
+function isOfficialSpelling(query: string, hit: { name: string; displayName?: string }): boolean {
+    const q = normalizeNodeName(query);
+    return q === normalizeNodeName(hit.name)
+        || (Boolean(hit.displayName) && q === normalizeNodeName(hit.displayName as string));
+}
+
+/**
+ * Resolve a node by name the way the CLI does: an exact match first, then the closest
+ * search hit that is plausibly the same node — on its name or its display name. Shared
+ * so `n8nac skills node-info` and the MCP server's `get_n8n_node_info` cannot drift
+ * apart on what counts as a match.
+ *
+ * `searchNodes` ranks by relevance, not similarity, and its score is unbounded: for
+ * `zzzznotanode` the top hit scored 133 and was `vectorStoreWeaviate`. Gating on that score
+ * was a no-op that turned every miss into a confident wrong answer, so a candidate has to
+ * earn the match on its name here.
+ *
+ * Reports whether the match was exact: a fuzzy hit can land on a different node than the
+ * caller meant, and silently returning it reads as confirmation that the name was right.
+ */
+export function resolveNode(provider: NodeSchemaProvider, name: string): NodeResolution | undefined {
+    const exact = provider.getNodeSchema(name);
+    if (exact) return { schema: exact, matchedName: exact.name, exact: true };
+
+    // The display name is one of the node's official spellings, but the search engine
+    // ranks word tokens, so a camelCase query (`sendEmail`) can fail to rank `Send Email`.
+    // Look the spellings up directly instead of trusting the ranking.
+    const q = normalizeNodeName(name);
+    const official = provider.listAllNodes()
+        .find((node: any) => normalizeNodeName(node.name) === q || normalizeNodeName(node.displayName) === q);
+    if (official) {
+        const schema = provider.getNodeSchema(official.name);
+        if (schema) return { schema, matchedName: official.name, exact: true };
+    }
+
+    const candidates = provider.searchNodes(name, 8)
+        .filter((hit: any) => isSameNodeName(name, hit))
+        // An official spelling is that node, full stop; after that the shortest name wins,
+        // so `sheets` means `googleSheets`, not `googleSheetsTrigger`.
+        .sort((a: any, b: any) =>
+            Number(isOfficialSpelling(name, b)) - Number(isOfficialSpelling(name, a))
+            || a.name.length - b.name.length);
+
+    for (const candidate of candidates) {
+        const schema = provider.getNodeSchema(candidate.name);
+        if (schema) {
+            return {
+                schema,
+                matchedName: candidate.name,
+                exact: isOfficialSpelling(name, candidate),
+            };
+        }
+    }
+    return undefined;
+}
+
+/** What to offer when nothing matched, so a miss costs a suggestion rather than a round trip. */
+export function suggestNodes(provider: NodeSchemaProvider, name: string, limit = 5): string[] {
+    return provider.searchNodes(name, limit).map((hit: any) => hit.name);
+}
+

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import type { IFolderSession } from '../core/types.js';
 import {
     N8nConfigurationService,
@@ -10,9 +11,29 @@ import {
     type N8nInstanceVerificationStatus,
     type UpsertGlobalN8nInstanceInput,
 } from '@n8n-as-code/n8n-manager-core';
-import { N8nApiClient, createCanonicalInstanceIdentifier, createInstanceIdentifier, createInstanceUserIdentifier, isCanonicalInstanceIdentifier, isCanonicalInstanceUserIdentifier, isCanonicalUserInstanceIdentifier, resolveInstanceIdentifier, resolveN8nIdentity as resolveN8nIdentityFromApi, type IResolvedN8nIdentity } from '../core/index.js';
+// Deep imports, not the `../core/index.js` barrel: the barrel re-exports sync-manager
+// (-> transformer -> ts-morph) and preflight-node-validator (-> @n8n-as-code/skills),
+// ~547ms of module graph that every command running an action pays through the
+// telemetry postAction hook, including `skills node-info`.
+import { N8nApiClient } from '../core/services/n8n-api-client.js';
+import {
+    createCanonicalInstanceIdentifier,
+    createInstanceIdentifier,
+    createInstanceUserIdentifier,
+    isCanonicalInstanceIdentifier,
+    isCanonicalInstanceUserIdentifier,
+    isCanonicalUserInstanceIdentifier,
+} from '../core/services/directory-utils.js';
+import {
+    resolveInstanceIdentifier,
+    resolveN8nIdentity as resolveN8nIdentityFromApi,
+    type IResolvedN8nIdentity,
+} from '../core/services/instance-identifier.js';
 
 const DEFAULT_SYNC_FOLDER = 'workflows';
+
+/** Identity of the ephemeral environment derived from a workspace `.env`. */
+const ENV_FILE_ENVIRONMENT_ID = 'env-file';
 
 type GlobalN8nInstanceWithUserIdentifier = GlobalN8nInstance & { instanceUserIdentifier?: string };
 type UpsertGlobalN8nInstanceInputWithUserIdentifier = UpsertGlobalN8nInstanceInput & { instanceUserIdentifier?: string };
@@ -571,9 +592,121 @@ export class ConfigService {
         return this.findInstanceTarget(this.ensureV4WorkspaceConfig(), nameOrId);
     }
 
+    /**
+     * The workspace `.env`, when it can stand in for a configured environment.
+     *
+     * `N8N_HOST` is n8n's own server *bind* variable, so a stock docker-compose `.env`
+     * carries a bare hostname. Only an absolute http(s) URL can address an instance, and
+     * silently deriving `localhost` from one would fail later with no explanation.
+     */
+    private readEnvFileEnvironment(): { host: string; apiKey?: string; mcpToken?: string; mcpUrl?: string } | undefined {
+        const envFile = path.join(this.workspaceRoot, '.env');
+        if (!fs.existsSync(envFile)) return undefined;
+
+        let parsed: Record<string, string>;
+        try {
+            parsed = dotenv.parse(fs.readFileSync(envFile));
+        } catch {
+            return undefined;
+        }
+
+        const host = (parsed.N8N_BASE_URL || parsed.N8N_HOST || '').trim();
+        if (!host) return undefined;
+
+        try {
+            const url = new URL(host);
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+        } catch {
+            return undefined;
+        }
+
+        return {
+            host,
+            apiKey: cleanOptional(parsed.N8N_API_KEY),
+            mcpToken: cleanOptional(parsed.N8N_NATIVE_MCP_TOKEN),
+            mcpUrl: cleanOptional(parsed.N8N_NATIVE_MCP_URL),
+        };
+    }
+
+    /** True when a command can resolve an environment, including one derived from `.env`. */
+    hasResolvableEnvironment(): boolean {
+        return this.isWorkspaceConfigV4() || this.readEnvFileEnvironment() !== undefined;
+    }
+
+    /**
+     * Derive an environment from the workspace `.env`, persisting nothing.
+     *
+     * Deliberately ephemeral. `resolveEnvironment` is a read with call sites as incidental
+     * as a VS Code tree refresh; writing `n8nac-config.json` and copying the API key and
+     * native MCP token into the global secret store from there would make a read
+     * side-effectful, and would duplicate secrets the `.env` already holds. It also keeps
+     * the derived environment disposable: delete the `.env` and it is gone, with no
+     * leftover entry that `env remove` would have to clean up.
+     */
+    private resolveEnvironmentFromEnvFile(): IResolvedWorkspaceEnvironment | undefined {
+        const envFile = this.readEnvFileEnvironment();
+        if (!envFile) return undefined;
+
+        const target = {
+            id: ENV_FILE_ENVIRONMENT_ID,
+            name: 'default',
+            kind: 'external-instance',
+            url: envFile.host,
+        } as IEnvironmentTarget;
+
+        const environment = {
+            id: ENV_FILE_ENVIRONMENT_ID,
+            name: 'default',
+            syncSlug: 'default',
+            environmentTargetId: ENV_FILE_ENVIRONMENT_ID,
+            workflowsPath: DEFAULT_SYNC_FOLDER,
+            projectId: 'personal',
+            projectName: 'Personal',
+            ...(envFile.mcpToken
+                ? { nativeMcp: { enabled: true, level: 2, url: envFile.mcpUrl } as IWorkspaceNativeMcpConfig }
+                : {}),
+        } as IWorkspaceEnvironment;
+
+        const resolved = this.resolveEnvironmentFromTarget(environment, target, 'workspace-default');
+        return {
+            ...resolved,
+            apiKey: envFile.apiKey,
+            apiKeyAvailable: Boolean(envFile.apiKey),
+            apiKeySource: envFile.apiKey ? 'env' : 'missing',
+            // `resolveEnvironmentFromTarget` derives the status before the key from the
+            // `.env` is attached, so it reported `missing-api-key` for a workspace holding
+            // one. `env status` hid that behind its probe; `--json`, `--no-probe` and every
+            // programmatic reader saw the wrong answer.
+            accessStatus: this.deriveAccessStatus({
+                host: resolved.host,
+                apiKey: envFile.apiKey,
+                projectId: environment.projectId,
+                projectName: environment.projectName,
+            }),
+            nativeMcp: resolved.nativeMcp
+                ? { ...resolved.nativeMcp, tokenConfigured: Boolean(envFile.mcpToken) }
+                : undefined,
+        } as IResolvedWorkspaceEnvironment;
+    }
+
     resolveEnvironment(environmentNameOrId?: string): IResolvedWorkspaceEnvironment {
         const config = this.readWorkspaceConfigFile();
         if (config.environments.length === 0) {
+            const fromEnvFile = this.resolveEnvironmentFromEnvFile();
+            if (fromEnvFile) {
+                // A `.env` defines exactly one environment. Returning it for any name asked
+                // for meant `--env prod` reported success against the `.env` host: the
+                // caller believed it had switched instance and had not.
+                const requested = environmentNameOrId;
+                if (requested && requested !== fromEnvFile.environment.id && requested !== fromEnvFile.environment.name) {
+                    throw new Error(
+                        `Environment '${requested}' does not exist. This workspace is configured by its .env file, `
+                        + `which defines a single environment ('${fromEnvFile.environment.name}'). `
+                        + 'Run `n8nac env add` to define named environments.',
+                    );
+                }
+                return fromEnvFile;
+            }
             throw new Error('No workspace environment is configured. Run `n8nac env add` first.');
         }
         const environment = environmentNameOrId
@@ -1049,6 +1182,18 @@ export class ConfigService {
     }
 
     getNativeMcpToken(environmentNameOrId?: string): string | undefined {
+        // The `.env`-derived environment persists nothing, so the secret store holds no
+        // entry for it — its token lives in the file it was derived from. Reading only the
+        // store reported the token as configured on `env status` while every consumer that
+        // asked for it got `undefined`.
+        if (this.readWorkspaceConfigFile().environments.length === 0) {
+            const envFile = this.readEnvFileEnvironment();
+            if (envFile) {
+                // Throws when the caller named something else, as every other read does.
+                this.resolveEnvironment(environmentNameOrId);
+                return envFile.mcpToken;
+            }
+        }
         const environment = environmentNameOrId
             ? this.findEnvironment(this.ensureV4WorkspaceConfig(), environmentNameOrId)
             : this.resolveEnvironment().environment;

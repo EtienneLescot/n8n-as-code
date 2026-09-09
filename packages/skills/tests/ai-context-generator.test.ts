@@ -229,6 +229,26 @@ describe('AiContextGenerator', () => {
             expect(fs.existsSync(path.join(tempDir, 'n8nac.cmd'))).toBe(false);
         });
     });
+
+    describe('npx fallback guidance', () => {
+        it('recommends installing once when it falls back to the npx command form', () => {
+            const agentsContent = (generator as any).getAgentsContent('1.0.0', 'next', {});
+
+            expect(agentsContent).toContain('npx --yes n8nac@next');
+            expect(agentsContent).toContain('npm i -g n8nac@next');
+            expect(agentsContent).toContain("npm's own startup");
+        });
+
+        it('omits the install recommendation when the command is already direct', () => {
+            const agentsContent = (generator as any).getAgentsContent('1.0.0', 'next', {
+                cliCommandOverride: 'n8nac',
+            });
+
+            expect(agentsContent).toContain('- n8nac command: `n8nac`');
+            expect(agentsContent).not.toContain('npm i -g n8nac');
+        });
+    });
+
         test('generates copy-safe guidance in a linked Git worktree', async () => {
             const mainRoot = path.join(tempDir, 'main');
             const linkedWorktree = path.join(tempDir, 'linked');

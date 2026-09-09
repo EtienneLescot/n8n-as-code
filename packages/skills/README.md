@@ -65,21 +65,25 @@ n8nac skills search "database" --type node
 n8nac skills search "ai" --category advanced-ai
 ```
 
-### `node-info <nodeName>` - 📚 Complete Node Info
-Get full node information: schema + documentation + examples.
+### `node-info <nodeName...>` - 📚 Complete Node Info
+Get full node information: schema + documentation + examples. Accepts several nodes at once.
 
 ```bash
 n8nac skills node-info googleSheets
-n8nac skills node-info httpRequest
+n8nac skills node-info gmail googleCalendar agent
+
+# --compact: essential parameters only, no interface dump (token-efficient)
+n8nac skills node-info gmail googleCalendar --compact
 ```
 
 **Includes hints for next steps!**
 
-### `node-schema <nodeName>` - ⚡ Quick Parameter Reference
-Fast access to technical schema (parameters only).
+### `node-schema <nodeName...>` - ⚡ Quick Parameter Reference
+Fast access to technical schema (parameters only). Accepts several nodes at once.
 
 ```bash
 n8nac skills node-schema googleSheets
+n8nac skills node-schema gmail httpRequest --compact
 # Returns only properties and required fields
 ```
 

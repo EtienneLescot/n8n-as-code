@@ -6,6 +6,44 @@
  */
 
 export class TypeScriptFormatter {
+    /** Pick up to 7 representative params: resource/operation first, then required, then the rest. */
+    private static selectKeyParams(allProps: any[]): any[] {
+        const picked: any[] = [];
+        const seen = new Set<string>();
+        const take = (prop: any) => { seen.add(prop.name); picked.push(prop); };
+
+        for (const prop of allProps) {
+            if ((prop.name === 'resource' || prop.name === 'operation') && !seen.has(prop.name)) take(prop);
+        }
+        // Required params first, then any other settable one. Notice banners are UI-only.
+        for (const requiredOnly of [true, false]) {
+            for (const prop of allProps) {
+                if (picked.length >= 7) return picked;
+                if (seen.has(prop.name) || prop.type?.toLowerCase() === 'notice') continue;
+                if (requiredOnly && !prop.required) continue;
+                take(prop);
+            }
+        }
+        return picked;
+    }
+
+    /**
+     * Render a parameter's example value. n8n stores per-dataType fixedCollection rules as
+     * separate properties sharing one name; their option groups are merged so the snippet
+     * shows every valid value.
+     */
+    private static renderParamValue(prop: any, allProps: any[]): string {
+        if (prop.type?.toLowerCase() !== 'fixedcollection') {
+            return TypeScriptFormatter.generateDefaultValue(prop);
+        }
+        const siblings = allProps.filter((p: any) =>
+            p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
+        const renderProp = siblings.length > 1
+            ? { ...prop, options: siblings.flatMap((p: any) => p.options || []) }
+            : prop;
+        return TypeScriptFormatter.expandFixedCollectionValue(renderProp, '  ');
+    }
+
     /**
      * Generate a TypeScript node usage example from schema
      */
@@ -17,78 +55,26 @@ export class TypeScriptFormatter {
         version: number | number[];
         properties?: any[];
     }): string {
-        const latestVersion = Array.isArray(schema.version) 
-            ? Math.max(...schema.version) 
+        const latestVersion = Array.isArray(schema.version)
+            ? Math.max(...schema.version)
             : schema.version;
 
-        // Get unique parameters with smart prioritization
-        const seenNames = new Set<string>();
-        const uniqueParams: any[] = [];
         const allProps = schema.properties || [];
-        
-        // Priority 1: resource and operation (essential for most nodes)
-        for (const prop of allProps) {
-            if ((prop.name === 'resource' || prop.name === 'operation') && !seenNames.has(prop.name)) {
-                seenNames.add(prop.name);
-                uniqueParams.push(prop);
-            }
-        }
-        
-        // Priority 2: Required params (up to 7 total including resource/operation)
-        for (const prop of allProps) {
-            if (uniqueParams.length >= 7) break;
-            if (prop.required && !seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
-                seenNames.add(prop.name);
-                uniqueParams.push(prop);
-            }
-        }
-        
-        // Priority 3: Common optional params (to reach ~7 total)
-        for (const prop of allProps) {
-            if (uniqueParams.length >= 7) break;
-            // Skip UI-only notice banners — they are not settable runtime parameters
-            if (!seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
-                seenNames.add(prop.name);
-                uniqueParams.push(prop);
-            }
-        }
-
-        // Build parameter object with comments
         const paramLines: string[] = [];
-        
-        for (const prop of uniqueParams) {
-            const comment = prop.description ? `  // ${prop.description}` : '';
-            const requiredLabel = prop.required ? ' (required)' : ' (optional)';
-            const typeHint = prop.type ? ` // type: ${prop.type}` : '';
-            
-            if (comment) {
-                paramLines.push(comment);
-            }
 
-            const isFixedColl = prop.type?.toLowerCase() === 'fixedcollection';
-            let renderProp = prop;
-            if (isFixedColl) {
-                // n8n stores per-dataType fixedCollection rules as separate properties with the
-                // same name but different displayOptions. Merge their options groups so we can
-                // show all valid operation values in one snippet.
-                const siblings = allProps.filter((p: any) =>
-                    p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
-                if (siblings.length > 1) {
-                    const mergedOptions = (siblings as any[]).flatMap((p: any) => p.options || []);
-                    renderProp = { ...prop, options: mergedOptions };
-                }
+        for (const prop of this.selectKeyParams(allProps)) {
+            if (prop.description) {
+                paramLines.push(`  // ${prop.description}`);
             }
-            const value = isFixedColl
-                ? TypeScriptFormatter.expandFixedCollectionValue(renderProp, '  ')
-                : this.generateDefaultValue(prop);
-            paramLines.push(`  ${prop.name}: ${value},${typeHint}${requiredLabel}`);
+            const typeHint = prop.type ? ` // type: ${prop.type}` : '';
+            const requiredLabel = prop.required ? ' (required)' : ' (optional)';
+            paramLines.push(`  ${prop.name}: ${this.renderParamValue(prop, allProps)},${typeHint}${requiredLabel}`);
         }
 
         const paramsStr = paramLines.length > 0 
             ? '\n' + paramLines.join('\n') + '\n  '
             : ' ';
 
-        const className = this.toPascalCase(schema.name);
         const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
 
         return `// ${schema.displayName}
@@ -262,11 +248,12 @@ ${interfaceBody}
             gatedParams: string[];
             aiConnectionType: string | null;
         }>;
-    }, opts: { maxDesc?: number; maxEnum?: number; maxRequired?: number; maxGating?: number } = {}): string {
+    }, opts: { maxDesc?: number; maxEnum?: number; maxRequired?: number; maxGating?: number; maxShape?: number } = {}): string {
         const maxDesc = opts.maxDesc ?? 300;
         const maxEnum = opts.maxEnum ?? 10;
         const maxRequired = opts.maxRequired ?? 15;
         const maxGating = opts.maxGating ?? 10;
+        const maxShape = opts.maxShape ?? 240;
         const latestVersion = Array.isArray(schema.version)
             ? Math.max(...schema.version)
             : schema.version;
@@ -274,15 +261,42 @@ ${interfaceBody}
         const lines: string[] = [];
         lines.push(`// ${schema.displayName} (${schema.type} v${latestVersion})`);
         if (desc) lines.push(`// ${desc}`);
+        const allProps = (schema.properties || []) as any[];
         const seenRequired = new Set<string>();
         const required: string[] = [];
-        for (const p of (schema.properties || []) as any[]) {
+        const ENUM_TYPES = new Set(['options', 'multioptions']);
+        const STRUCTURED_TYPES = new Set(['resourcelocator', 'resourcemapper', 'fixedcollection', 'collection']);
+
+        for (const p of allProps) {
             if (!p.required || p.type?.toLowerCase() === 'notice' || seenRequired.has(p.name)) continue;
             seenRequired.add(p.name);
-            const enums = Array.isArray(p.options)
-                ? ` [${this.compactEnumList(p.options, maxEnum)}]`
-                : '';
-            required.push(`//   - ${p.name}: ${p.type}${enums}`);
+            const type = String(p.type || '').toLowerCase();
+
+            // Union across variants, as the discriminators do: reading one variant's
+            // options advertised a subset as the whole set, with no marker that the rest
+            // existed. And only enum types get a value list — a fixedCollection's
+            // `options` are sub-field groups, which read as allowed scalars in brackets.
+            if (ENUM_TYPES.has(type)) {
+                const values = this.unionOptionValues(allProps, p.name, latestVersion);
+                const enums = values.length > 0
+                    ? ` [${this.compactEnumList(values.map((value) => ({ value })), maxEnum)}]`
+                    : '';
+                required.push(`//   - ${p.name}: ${p.type}${enums}`);
+                continue;
+            }
+
+            // A bare type name is not enough to write one of these, but the full shape can
+            // run to thousands of characters and compact exists to be small — under the cap
+            // print the shape; over it, name the type and say where the rest went, the way
+            // every other cap here does. A mid-token cut is neither small nor usable.
+            if (STRUCTURED_TYPES.has(type)) {
+                const shape = this.mapTypeToTypeScript(p);
+                required.push(shape.length > maxShape
+                    ? `//   - ${p.name}: ${p.type} (shape > ${maxShape} chars — see node-info --json)`
+                    : `//   - ${p.name}: ${shape}`);
+            } else {
+                required.push(`//   - ${p.name}: ${p.type}`);
+            }
         }
         if (required.length > 0) {
             lines.push(`// required:`);
@@ -291,12 +305,47 @@ ${interfaceBody}
                 lines.push(`//   ... (+${required.length - maxRequired} more required — see node-schema --json)`);
             }
         }
+        // The discriminators an author actually needs. Without them compact is a search
+        // result rather than a schema: a builder reported paying a second full lookup per
+        // node because the snippet body was an empty placeholder.
+        const resources = this.unionOptionValues(allProps, 'resource', latestVersion);
+        const operationGroups = this.operationGroups(allProps, latestVersion, new Set(resources));
+
+        if (resources.length > 0) {
+            lines.push(`// resource: ${this.compactEnumList(resources.map((value) => ({ value })), maxEnum)}`);
+        }
+        if (operationGroups.length > 0) {
+            const enumOf = (values: string[]) => this.compactEnumList(values.map((value) => ({ value })), maxEnum);
+            const ungrouped = operationGroups.length === 1 && operationGroups[0].label === '*';
+            if (ungrouped) {
+                lines.push(`// operation: ${enumOf(operationGroups[0].operations)}`);
+            } else {
+                lines.push(`// operation, by resource:`);
+                for (const group of operationGroups.slice(0, maxGating)) {
+                    lines.push(`//   ${group.label}: ${enumOf(group.operations)}`);
+                }
+                if (operationGroups.length > maxGating) {
+                    lines.push(`//   ... (+${operationGroups.length - maxGating} more — see node-info --json)`);
+                }
+            }
+        }
+
+        const firstResource = resources[0];
+        // The snippet is emitted verbatim, so prefer a pair with no gate beyond `resource`:
+        // a gated one needs a parameter the snippet does not carry and would not validate.
+        const candidates = operationGroups.filter((g) => g.resource === (firstResource ?? '*'));
+        const firstOperation = (candidates.find((g) => g.label === g.resource) ?? candidates[0])?.operations[0];
+        const discriminators = [
+            firstResource ? `  resource: '${firstResource}',` : undefined,
+            firstOperation ? `  operation: '${firstOperation}',` : undefined,
+        ].filter(Boolean) as string[];
+
         lines.push(this.generateMinimalSnippet({
             name: schema.name,
             type: schema.type,
             displayName: schema.displayName,
             version: schema.version,
-        }));
+        }, discriminators));
         const gating = schema.parameterGating || [];
         if (gating.length > 0) {
             lines.push(`// gating flags (set true only when using the gated params/connection):`);
@@ -315,6 +364,94 @@ ${interfaceBody}
         return oneLine.length > n ? oneLine.slice(0, n - 1) + '…' : oneLine;
     }
 
+    /**
+     * Union the options of every property sharing a name.
+     *
+     * n8n splits one logical parameter into several properties gated by `displayOptions`,
+     * so reading only the first advertises one variant's values as if they were the whole
+     * set — compact told an agent `gmail` could only `create|delete|get|getAll`, hiding
+     * `send`, and it picked a wrong operation on that basis.
+     */
+    private static unionOptionValues(allProps: any[], name: string, version?: number): string[] {
+        const seen = new Set<string>();
+        for (const prop of allProps) {
+            if (prop.name !== name || !Array.isArray(prop.options)) continue;
+            if (version !== undefined && !this.matchesVersion(prop.displayOptions?.show?.['@version'], version)) continue;
+            for (const option of prop.options) {
+                const value = option?.value ?? option?.name;
+                if (value !== undefined) seen.add(String(value));
+            }
+        }
+        return [...seen];
+    }
+
+    /**
+     * Operations grouped by the conditions that make them reachable.
+     *
+     * The validator decides an `operation` variant applies by evaluating every key of its
+     * `displayOptions.show`, so grouping on `resource` alone advertised pairs it rejects:
+     * variants belonging to another node version, and variants that additionally require
+     * `source` or `authentication` to be set. Both are kept honest here rather than
+     * dropped — a gated pair is valid once its gate is named.
+     */
+    private static operationGroups(
+        allProps: any[],
+        version: number,
+        knownResources: Set<string>,
+    ): Array<{ resource: string; label: string; operations: string[] }> {
+        const groups = new Map<string, { resource: string; label: string; operations: string[] }>();
+
+        for (const prop of allProps) {
+            if (prop.name !== 'operation' || !Array.isArray(prop.options)) continue;
+            const show: Record<string, unknown> = prop.displayOptions?.show ?? {};
+            if (!this.matchesVersion(show['@version'], version)) continue;
+
+            const resources = Array.isArray(show.resource) ? show.resource.map(String) : ['*'];
+            const gates = Object.entries(show)
+                .filter(([key]) => key !== 'resource' && key !== '@version')
+                .map(([key, values]) => `${key}=${(Array.isArray(values) ? values : [values]).join('|')}`);
+
+            for (const resource of resources) {
+                // A resource the node's own enum does not carry is not a pair anyone can
+                // write: the value is rejected before the operation is ever looked at.
+                if (resource !== '*' && knownResources.size > 0 && !knownResources.has(resource)) continue;
+                const label = gates.length > 0 ? `${resource} (${gates.join(', ')})` : resource;
+                const group = groups.get(label) ?? { resource, label, operations: [] };
+                for (const option of prop.options) {
+                    const value = option?.value ?? option?.name;
+                    if (value === undefined) continue;
+                    if (!group.operations.includes(String(value))) group.operations.push(String(value));
+                }
+                groups.set(label, group);
+            }
+        }
+        return [...groups.values()];
+    }
+
+    /**
+     * Evaluate a `displayOptions.show['@version']` condition: a list of plain versions, or
+     * of `{ _cnd: { gte: 1.1 } }` comparators. Absent condition means every version.
+     */
+    private static matchesVersion(condition: unknown, version: number): boolean {
+        if (!Array.isArray(condition)) return true;
+        return condition.some((entry: any) => {
+            const cnd = entry?._cnd;
+            if (!cnd) return Number(entry) === version;
+            return Object.entries(cnd).every(([operator, value]: [string, any]) => {
+                switch (operator) {
+                    case 'eq': return version === value;
+                    case 'not': return version !== value;
+                    case 'gt': return version > value;
+                    case 'gte': return version >= value;
+                    case 'lt': return version < value;
+                    case 'lte': return version <= value;
+                    case 'between': return version >= value?.from && version <= value?.to;
+                    default: return true;
+                }
+            });
+        });
+    }
+
     private static compactEnumList(options: any[], max: number): string {
         const values = options.map((o: any) => String(o.value ?? o.name));
         return values.length > max
@@ -330,19 +467,23 @@ ${interfaceBody}
         type: string;
         displayName: string;
         version: number | number[];
-    }): string {
+    }, bodyLines: string[] = []): string {
         const latestVersion = Array.isArray(schema.version) 
             ? Math.max(...schema.version) 
             : schema.version;
 
         const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
 
+        const body = bodyLines.length > 0
+            ? `\n${bodyLines.join('\n')}\n`
+            : ' /* parameters */ ';
+
         return `@node({
   name: '${schema.displayName}',
   type: '${schema.type}',
   version: ${latestVersion}
 })
-${nodeProp} = { /* parameters */ };`;
+${nodeProp} = {${body}};`;
     }
 
     /**
@@ -406,6 +547,8 @@ ${nodeProp} = { /* parameters */ };`;
             // At runtime the JSON structure is { assignments: Array<{id,name,value,type}> }
             case 'assignmentcollection':
                 return `{ assignments: Array<{ id?: string; name: string; value: string | number | boolean | unknown[] | Record<string, unknown>; type?: 'string' | 'number' | 'boolean' | 'array' | 'object' }> }`;
+            case 'resourcelocator':
+                return `{ __rl: true; value: string; mode: 'list' | 'id' | 'url' | string }`;
             case 'fixedcollection': {
                 const opts = prop.options as any[] | undefined;
                 if (!opts || opts.length === 0) return 'Record<string, any>';
@@ -532,6 +675,17 @@ ${nodeProp} = { /* parameters */ };`;
         // full assignments array — always override regardless of prop.default.
         if (type === 'assignmentcollection') {
             return `{\n    assignments: [\n      {\n        id: '1',\n        name: 'fieldName',\n        value: 'fieldValue',\n        type: 'string',  // valid: string | number | boolean | array | object\n      }\n    ]\n  }`;
+        }
+
+        // resourceLocator runtime structure requires __rl: true, mode, and value
+        if (type === 'resourcelocator') {
+            const mode = typeof prop.default === 'object' && prop.default !== null && prop.default.mode
+                ? prop.default.mode
+                : 'list';
+            const value = typeof prop.default === 'object' && prop.default !== null && prop.default.value !== undefined
+                ? prop.default.value
+                : (typeof prop.default === 'string' ? prop.default : '');
+            return `{ __rl: true, value: '${value}', mode: '${mode}' }`;
         }
 
         if (prop.default !== undefined && prop.default !== null) {
