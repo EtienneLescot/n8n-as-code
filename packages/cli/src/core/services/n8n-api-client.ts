@@ -281,17 +281,26 @@ export class N8nApiClient {
      *
      * Every other read method here swallows failures and falls back to a placeholder,
      * which is right for a caller that wants data and wrong for a caller that wants to
-     * know whether the credentials work at all. n8n's public API authenticates before it
-     * routes, so any HTTP response other than 401/403 means the key was accepted.
+     * know whether the credentials work at all. Only a 2xx proves the n8n public API
+     * accepted the key: 401/403 means it rejected it, and anything else — a 404 from a
+     * non-n8n host, a 5xx, an HTML error page — is not a working API no matter what
+     * answered.
+     *
+     * `timeoutMs` must actually bound the process, not just the caller's patience: a
+     * request that only loses a `Promise.race` keeps the axios socket (and the event
+     * loop) alive until the instance-level timeout fires.
      */
-    async verifyAccess(): Promise<{ ok: boolean; reason?: 'unauthorized' | 'unreachable'; status?: number }> {
+    async verifyAccess(timeoutMs?: number): Promise<{ ok: boolean; reason?: 'unauthorized' | 'unreachable' | 'api-unavailable'; status?: number }> {
         try {
-            await this.client.get('/api/v1/projects', { params: { limit: 1 } });
+            await this.client.get('/api/v1/projects', {
+                params: { limit: 1 },
+                ...(timeoutMs ? { timeout: timeoutMs, signal: AbortSignal.timeout(timeoutMs) } : {}),
+            });
             return { ok: true };
         } catch (error: any) {
             const status = error?.response?.status;
             if (status === 401 || status === 403) return { ok: false, reason: 'unauthorized', status };
-            if (status) return { ok: true, status };
+            if (status) return { ok: false, reason: 'api-unavailable', status };
             return { ok: false, reason: 'unreachable' };
         }
     }

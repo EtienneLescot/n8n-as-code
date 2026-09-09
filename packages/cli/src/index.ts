@@ -530,7 +530,12 @@ environmentProgram.command('list')
             if (derived) {
                 printJsonOrText(
                     options,
-                    [{ name: derived.environmentName, host: derived.host, source: 'env-file', active: true }],
+                    // Same shape as the persisted branch below: a bare array with different
+                    // fields made --json consumers special-case the .env-derived workspace.
+                    {
+                        activeEnvironmentId: derived.environmentId,
+                        environments: [{ ...derived.environment, resolved: redactResolvedEnvironment(derived) }],
+                    },
                     chalk.cyan(`
 ${derived.environmentName} (derived from .env) -> ${derived.host}
 `),
@@ -843,23 +848,15 @@ async function probeEnvironmentAccess(
     const { N8nApiClient } = await import('./core/services/n8n-api-client.js');
     const client = new N8nApiClient({ host: environment.host, apiKey: environment.apiKey });
 
-    // The timer must be cleared: an uncleared setTimeout keeps the event loop alive until
-    // it fires, so a probe that answered in 200ms still made the command take the full
-    // timeout to exit. The cap is meant to bound the wait, not to become it.
-    let timer: NodeJS.Timeout | undefined;
+    // The budget is passed into the request itself: a probe that only loses a race here
+    // would still hold its socket open until the client-level timeout, and the command
+    // would take that long to exit.
     try {
-        const outcome = await Promise.race([
-            client.verifyAccess(),
-            new Promise<never>((_, reject) => {
-                timer = setTimeout(() => reject(new Error('probe timed out')), timeoutMs);
-            }),
-        ]);
+        const outcome = await client.verifyAccess(timeoutMs);
         if (outcome.ok) return 'ready';
         return outcome.reason === 'unauthorized' ? 'invalid-api-key' : 'runtime-unavailable';
     } catch {
         return 'runtime-unavailable';
-    } finally {
-        if (timer) clearTimeout(timer);
     }
 }
 
