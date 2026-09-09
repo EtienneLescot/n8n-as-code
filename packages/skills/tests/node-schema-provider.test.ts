@@ -457,6 +457,8 @@ describeWithOntology('resolveNode', () => {
         ['gmail', 'gmail'],
         ['googleSheets', 'googleSheets'],
         ['webhook', 'webhook'],
+        // The display name and the camelCase spelling normalize to the same thing.
+        ['sendEmail', 'emailSend'],
     ])('resolves %s exactly', (query, expected) => {
         const resolution = resolveNode(real, query);
         expect(resolution?.matchedName).toBe(expected);
@@ -474,7 +476,7 @@ describeWithOntology('resolveNode', () => {
         expect(resolution?.exact).toBe(false);
     });
 
-    test.each(['zzzznotanode', 'xyzzy-plugh', 'sendEmail'])(
+    test.each(['zzzznotanode', 'xyzzy-plugh'])(
         'refuses to invent a node for %s',
         (query) => {
             expect(resolveNode(real, query)).toBeUndefined();
@@ -488,5 +490,30 @@ describeWithOntology('resolveNode', () => {
     test('a prefixed type name is the same node, not a fuzzy hit', () => {
         const resolution = resolveNode(real, 'n8n-nodes-base.googleSheets');
         expect(resolution?.exact).toBe(true);
+    });
+
+    // The guard is the property itself: a display name is one of the node's official
+    // spellings, so resolving by it must land on that node — exactly, not on the parent
+    // node whose name it contains (`Slack Trigger` -> `slack`) and not on a miss.
+    test('every display name in the ontology resolves to its own node', () => {
+        const ontologyJson = JSON.parse(fs.readFileSync(ontology, 'utf-8'));
+        // Two display names are each borne by two nodes; resolving by them may return either.
+        const ownersByDisplayName = new Map<string, string[]>();
+        for (const node of Object.values<any>(ontologyJson.nodes)) {
+            ownersByDisplayName.set(node.displayName,
+                [...(ownersByDisplayName.get(node.displayName) || []), node.name]);
+        }
+        const problems: string[] = [];
+        for (const [displayName, owners] of ownersByDisplayName) {
+            const resolution = resolveNode(real, displayName);
+            if (!resolution) {
+                problems.push(`${displayName}: not found`);
+            } else if (!resolution.exact) {
+                problems.push(`${displayName}: inexact (${resolution.matchedName})`);
+            } else if (!owners.includes(resolution.matchedName)) {
+                problems.push(`${displayName}: resolved to ${resolution.matchedName}`);
+            }
+        }
+        expect(problems.join(' | ')).toBe('');
     });
 });
