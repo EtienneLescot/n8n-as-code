@@ -485,6 +485,10 @@ test('CLI skills assets: extension bundles only runtime-required agent assets', 
     const ensureExtensionAssetsSource = fs.readFileSync(path.join(__dirname, '../../../../scripts/ensure-extension-skills-assets.cjs'), 'utf8');
     const cliSource = fs.readFileSync(path.join(__dirname, '../../../cli/src/index.ts'), 'utf8');
     const skillsCliSource = fs.readFileSync(path.join(__dirname, '../../../skills/src/cli.ts'), 'utf8');
+    // The skills CLI delegates asset resolution to a shared module so the MCP server and the
+    // extension resolve assets identically. Assert on that module, and on the delegation, so
+    // this guard follows the logic instead of pinning it to one file.
+    const skillsAssetsSource = fs.readFileSync(path.join(__dirname, '../../../skills/src/services/assets-dir.ts'), 'utf8');
 
     assert.ok(rootPackage.scripts['build:extension'].includes('ensure-extension-skills-assets.cjs'), 'Extension build must verify agent skills before bundling');
     assert.ok(ensureExtensionAssetsSource.includes('hasRequiredAgentSkills'), 'Extension build preflight must verify agent skills before bundling');
@@ -500,8 +504,9 @@ test('CLI skills assets: extension bundles only runtime-required agent assets', 
     assert.ok(!extensionBuildSource.includes('skills assets not found; run `npm run build:extension`'), 'Extension bundler must not fail on missing generated skills JSON assets');
     assert.ok(cliSource.includes('hasRequiredAssets'), 'CLI must verify skills asset directories before selecting them');
     assert.ok(cliSource.includes("'vscode-extension', 'assets'"), 'CLI dev fallback should find extension-bundled assets');
-    assert.ok(skillsCliSource.includes('hasRequiredAssets'), 'Direct skills CLI must verify skills asset directories before selecting them');
-    assert.ok(skillsCliSource.includes('vscode-extension/assets'), 'Direct skills CLI dev fallback should find extension-bundled assets');
+    assert.ok(skillsCliSource.includes('resolveSkillsAssetsDir'), 'Direct skills CLI must resolve assets through the shared resolver');
+    assert.ok(skillsAssetsSource.includes('hasRequiredAssets'), 'Shared skills asset resolver must verify asset directories before selecting them');
+    assert.ok(skillsAssetsSource.includes('vscode-extension/assets'), 'Shared skills asset resolver dev fallback should find extension-bundled assets');
 });
 
 test('Agent Workbench state delivery: runtime states are lightweight and ordered', () => {
