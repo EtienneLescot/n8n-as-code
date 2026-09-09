@@ -47,7 +47,7 @@ Resolve the effective environment through the backend before workflow work:
 
 1. `cd` to the context root.
 2. Run `{{N8NAC_CMD}} update-ai`, then read `AGENTS.md`.
-3. Run `{{N8NAC_CMD}} env status --json`. If it resolves, the workspace is ready — skip steps 4-9.
+3. Run `{{N8NAC_CMD}} env status --json`. If it resolves with `accessStatus: "ready"`, the workspace is ready — skip steps 4-9. A resolution with `missing-api-key` or `invalid-api-key` means only the credential is missing: go to step 7.
 4. If the context root is not ready, inspect managed local instances with `{{N8N_MANAGER_CMD}} instance list`.
 5. Reuse an existing environment or managed local instance when suitable.
 6. If no suitable environment exists, stop and ask the user whether they want to connect a remote n8n URL or create/reuse a managed local n8n instance. Do not create infrastructure by default. If the user chooses a managed local instance, ask separately whether they want a public tunnel.
