@@ -376,7 +376,9 @@ function resolveAdapterDistTag(repoRoot: string): string | undefined {
         path.join(repoRoot, 'packages/skills/package.json'),
     ].map((packagePath) => JSON.parse(fs.readFileSync(packagePath, 'utf8')).version as string);
 
-    if (versions.some((version) => version.includes('-next'))) {
+    // ponytail: hand-copied from resolveAdapterDistTag in scripts/build-skill-adapters.js.
+    // It has already drifted twice; share one module if it drifts again.
+    if (versions.some((version) => version.includes('-next') || version.includes('-rc'))) {
         return 'next';
     }
 
