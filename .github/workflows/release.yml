@@ -135,6 +135,14 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve and stamp the n8n stable tag
+        id: n8n-tag
+        run: |
+          TAG=$(node scripts/ensure-n8n-cache.cjs --print-tag)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "N8N_VERSION=$TAG" >> "$GITHUB_ENV"
+          N8N_VERSION="$TAG" node scripts/stamp-n8n-version.cjs
+
       - name: Commit RC versions
         run: |
           git config user.name 'github-actions[bot]'
@@ -160,10 +168,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Resolve n8n stable tag
-        id: n8n-tag
-        run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
 
       - name: Cache n8n repository
         uses: actions/cache@v4
@@ -408,6 +412,14 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve and stamp the n8n stable tag
+        id: n8n-tag
+        run: |
+          TAG=$(node scripts/ensure-n8n-cache.cjs --print-tag)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "N8N_VERSION=$TAG" >> "$GITHUB_ENV"
+          N8N_VERSION="$TAG" node scripts/stamp-n8n-version.cjs
+
       - name: Commit final versions
         run: |
           git config user.name 'github-actions[bot]'
@@ -433,10 +445,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Resolve n8n stable tag
-        id: n8n-tag
-        run: echo "tag=$(node scripts/ensure-n8n-cache.cjs --print-tag)" >> "$GITHUB_OUTPUT"
 
       - name: Cache n8n repository
         uses: actions/cache@v4
