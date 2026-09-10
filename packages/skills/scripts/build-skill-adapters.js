@@ -117,8 +117,13 @@ function resolveAdapterDistTag() {
     return 'next';
   }
 
+  // The -rc/-next check above is the real prerelease signal. A release branch still
+  // carries stable versions until its RC bump lands, and its committed mirrors are
+  // main's stable payload, so pinning @next on the branch name alone made every push
+  // to release/** fail the committed-skills guard. Use build:adapters:branch when you
+  // explicitly want the next-channel payload.
   const branch = process.env.GITHUB_REF_NAME || process.env.BRANCH_NAME || readGitBranch();
-  return (branch === 'next' || branch?.startsWith('release/')) ? 'next' : undefined;
+  return branch === 'next' ? 'next' : undefined;
 }
 
 function readPackageVersion(packagePath) {
