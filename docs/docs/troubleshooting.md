@@ -235,6 +235,19 @@ n8nac --help
 
 The current package is `n8nac`.
 
+## Update Notice
+
+`n8nac update-ai` checks whether a newer version is published and, if so, prints one line telling you. It reads about 80 bytes from the npm registry, gives up after three seconds, and never fails the command.
+
+Turn it off with any of these:
+
+```bash
+NO_UPDATE_NOTIFIER=1
+DO_NOT_TRACK=1
+```
+
+It is already silent in CI, under `--silent`, and when you are running from a checkout of this repository.
+
 ## Complete Reset
 
 Back up workflows first, then recreate the environment:
