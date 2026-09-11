@@ -2446,9 +2446,15 @@ function resolveAiContextManagerCommandOverride(context: vscode.ExtensionContext
 
 // Mirrors packages/cli/src/utils/shell.ts. Duplicated on purpose: a three-line pure
 // function is not worth widening the n8nac public type surface across a package boundary.
+//
 // cmd.exe does not strip POSIX single quotes, so a single-quoted path reaches the program
 // with the quotes still attached and fails on the first space. Double quotes are understood
-// by cmd.exe, PowerShell and bash alike, and Windows forbids `"` in a path.
+// by cmd.exe, PowerShell and bash alike.
+//
+// This groups a value into one argument; on Windows it does not suppress expansion and
+// cannot. %VAR% expands in cmd.exe with or without quotes, !VAR! expands under delayed
+// expansion, and $ and a backtick expand under PowerShell and bash. See the canonical file
+// for why no escaping satisfies all three shells.
 function quoteShellArg(value: string): string {
     return process.platform === 'win32'
         ? `"${value}"`
