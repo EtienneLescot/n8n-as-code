@@ -18,11 +18,13 @@ Install once. `update-ai` then writes agent instructions that name the binary di
 npm install -g n8nac
 ```
 
-A project-local install works too, and pins the version for everyone who clones the repo. Run it through `npx n8nac <command>`, which finds it without downloading anything.
+A project-local install works too. It adds n8nac to the project dependencies, so anyone who clones the repo gets it from `npm install`. Run it through `npx n8nac <command>`, which finds it without downloading anything.
 
 ```bash
 npm install n8nac
 ```
+
+That records a semver range, not a fixed version. For everyone to run the same build, add `--save-exact` and commit your lockfile.
 
 Without any install, every documented command still runs:
 
