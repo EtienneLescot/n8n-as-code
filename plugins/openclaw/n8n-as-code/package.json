@@ -31,7 +31,7 @@
     "@types/node": "^22.0.0",
     "openclaw": "2026.8.2",
     "typescript": "^5.8.0",
-    "vitest": "^1.6.1"
+    "vitest": "^5.0.0"
   },
   "files": [
     "CHANGELOG.md",
