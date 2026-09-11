@@ -1,5 +1,13 @@
 # @n8n-as-code/skills
 
+## [2.4.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.4.0...@n8n-as-code/skills@v2.4.1) (2026-09-11)
+
+### Bug Fixes
+
+* **skills,docs:** name a local n8nac install instead of routing every agent call through npx ([ee63bd0](https://github.com/EtienneLescot/n8n-as-code/commit/ee63bd064f0050587d7091abdb5a34669da95b28))
+* **skills:** align the test dist-tag resolver with the -rc rule ([11c2e8e](https://github.com/EtienneLescot/n8n-as-code/commit/11c2e8e0aa1d0bc20c029012f02681f54a44e131))
+* **skills:** stop pinning @next on release branches by name ([ff37113](https://github.com/EtienneLescot/n8n-as-code/commit/ff371135231769b03f8ec273ddb772619079c12b))
+
 ## [2.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.2...@n8n-as-code/skills@v2.4.0) (2026-09-11)
 
 ### Features

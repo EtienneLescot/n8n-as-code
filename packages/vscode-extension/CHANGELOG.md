@@ -1,5 +1,21 @@
 # n8n-as-code
 
+## [2.44.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.42.0...n8n-as-code@v2.44.0) (2026-09-11)
+
+### Bug Fixes
+
+* **cli,vscode:** quote for cmd.exe, and stop keeping four copies of the rule ([c366dcf](https://github.com/EtienneLescot/n8n-as-code/commit/c366dcf36dbad42eee81967a1f8c9969cd46be79))
+
+### Documentation
+
+* **cli:** say what the Windows quoting does not promise ([62020a4](https://github.com/EtienneLescot/n8n-as-code/commit/62020a40722736ad64489a1d5e3f81a3b9ef0b03))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/skills bumped from 2.4.1-rc.1 to 2.4.1
+    * n8nac bumped from 2.7.0-rc.1 to 2.7.0
+
 ## [2.42.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.40.0...n8n-as-code@v2.42.0) (2026-09-11)
 
 ### Features

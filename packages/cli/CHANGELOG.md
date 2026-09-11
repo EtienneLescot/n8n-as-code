@@ -1,5 +1,25 @@
 # @n8n-as-code/cli
 
+## [2.7.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.6.0...n8nac@v2.7.0) (2026-09-11)
+
+### Features
+
+* **cli:** say so when the installed n8nac is behind what is published ([36b3f23](https://github.com/EtienneLescot/n8n-as-code/commit/36b3f231cb1a4c8c66fdf8f0c936c701579c9414))
+
+### Bug Fixes
+
+* **cli,vscode:** quote for cmd.exe, and stop keeping four copies of the rule ([c366dcf](https://github.com/EtienneLescot/n8n-as-code/commit/c366dcf36dbad42eee81967a1f8c9969cd46be79))
+
+### Documentation
+
+* **cli:** say what the Windows quoting does not promise ([62020a4](https://github.com/EtienneLescot/n8n-as-code/commit/62020a40722736ad64489a1d5e3f81a3b9ef0b03))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/mcp bumped from 2.2.1-rc.1 to 2.2.1
+    * @n8n-as-code/skills bumped from 2.4.1-rc.1 to 2.4.1
+
 ## [2.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.5.0...n8nac@v2.6.0) (2026-09-11)
 
 ### Features
