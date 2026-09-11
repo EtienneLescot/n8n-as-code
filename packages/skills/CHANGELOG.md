@@ -1,5 +1,60 @@
 # @n8n-as-code/skills
 
+## [2.4.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.2...@n8n-as-code/skills@v2.4.0) (2026-09-11)
+
+### Features
+
+* **skills,cli:** benchmark-driven agent efficiency (batch, compact, --pin) ([d633070](https://github.com/EtienneLescot/n8n-as-code/commit/d633070762e3c2e2e7baab8b22f06db2e0e9793d))
+* **levels:** level awareness in generated context, L0 disclaimers, VS Code slider ([5e69983](https://github.com/EtienneLescot/n8n-as-code/commit/5e699839775267b3ddfcb843fa47988c43280d3a))
+* **release:** adopt the openscreen RC model — main-only merges, rc cuts, manual promote ([a9072d0](https://github.com/EtienneLescot/n8n-as-code/commit/a9072d08dc456bfda7174541f677f07e623a156d))
+* **cli:** warn that push releases published workflows, add --draft ([d32ff51](https://github.com/EtienneLescot/n8n-as-code/commit/d32ff515d949f51c54e535b8354930dd3f7f4208))
+
+### Bug Fixes
+
+* **skills:** align the test dist-tag resolver with the -rc rule ([1192b25](https://github.com/EtienneLescot/n8n-as-code/commit/1192b25e0f26e4d727801bc8483d9ccdef647669))
+* **skills:** stop pinning @next on release branches by name ([38f3446](https://github.com/EtienneLescot/n8n-as-code/commit/38f344690f5112f4f47d9af28afecd43f6fd3dea))
+* **ci:** stamp n8nVersion before the release commit ([971bca0](https://github.com/EtienneLescot/n8n-as-code/commit/971bca09cec87c92a2d5b43eaf9053da9c84dd75))
+* **skills:** a malformed cap must not silently reshape compact output ([cdfe16b](https://github.com/EtienneLescot/n8n-as-code/commit/cdfe16bc821fc4bcaee9dba2987b8107e341fe08))
+* **cli,skills,mcp:** cut agent round-trips and startup cost, plus the fixes the benchmark surfaced ([34395b5](https://github.com/EtienneLescot/n8n-as-code/commit/34395b58017ca2645cd3f143aa58590393036e00))
+* **skills:** harden batch command per review (tty hang, error boundary, relevance parity, bounded compact) ([fe74891](https://github.com/EtienneLescot/n8n-as-code/commit/fe74891a08f28117fe6c45a538f02daa889f391e))
+* **skills:** drop benchmark-flavored skeleton, add universal examples-fetching rule ([a35788a](https://github.com/EtienneLescot/n8n-as-code/commit/a35788af93c9fe97774c34c476842246ecccaf81))
+* **review:** overlay descriptor identity, level parsing, refresh fingerprint, fetch timeout ([1bbd2ef](https://github.com/EtienneLescot/n8n-as-code/commit/1bbd2ef35e132af2ee6dc89374d40dccfede3ac2))
+* **review:** fail-closed MCP redirects and machine-readable --print-tag ([fdc3c36](https://github.com/EtienneLescot/n8n-as-code/commit/fdc3c366d5c007395ee2e48cc59a3cd8217751a3))
+* **skills:** align display-condition semantics with n8n generator model ([8eab05a](https://github.com/EtienneLescot/n8n-as-code/commit/8eab05a1d6c948ce20b9ee31fd2833c49bb1a346))
+* **validation:** automatic instance probing, strict RLC shapes and ontology source selection ([b37a256](https://github.com/EtienneLescot/n8n-as-code/commit/b37a256cb4f01ade8476a06de7447bff646e0a97))
+* **validation:** enforce server-equivalent node gating and pre-push instance validation ([81cf635](https://github.com/EtienneLescot/n8n-as-code/commit/81cf6356311244f6bc139b9af73a9603aa0a68ef))
+* **release:** remove untracked rc-plan.json before checking out release branch ([480565d](https://github.com/EtienneLescot/n8n-as-code/commit/480565d3890d48ad88b998f164522b4a94fc5aff))
+* **release:** publish pre-releases with next dist-tag and mirror to rc ([6d85ea3](https://github.com/EtienneLescot/n8n-as-code/commit/6d85ea3a4dcd17562a58d88afc1a37453cdd6314))
+* **release:** restore VS Code even/odd minor versioning for Marketplace compatibility ([48821f7](https://github.com/EtienneLescot/n8n-as-code/commit/48821f77664641394df786dff9f6daa7e6916a24))
+* **release:** wire NODE_AUTH_TOKEN with NPM_TOKEN for npm publishing in release workflows ([b84b0ad](https://github.com/EtienneLescot/n8n-as-code/commit/b84b0ad7a7bccf3ace70f6200747fa1e50eaae7a))
+* **skills:** update knowledge base for n8n@2.37.10 ([a74dd47](https://github.com/EtienneLescot/n8n-as-code/commit/a74dd4768bdaccc9a410768f194b5cfd3c8d5567))
+* **release:** bump Node.js to 22 in release workflows to satisfy openclaw engine requirements ([149ed13](https://github.com/EtienneLescot/n8n-as-code/commit/149ed13b5d36840f94d161ffbaf2bae4f799498d))
+* **release:** pin the release line on re-cuts, keep RC tags immutable, strict rc numbers ([5ffb548](https://github.com/EtienneLescot/n8n-as-code/commit/5ffb548252726807d3edee5902743f8d6ab6753c))
+* **release:** address review — input routing, tag/head equality, bump floor, sync PR polling ([b9bf114](https://github.com/EtienneLescot/n8n-as-code/commit/b9bf114f560e126472e211b8d1db990390b2aa0a))
+* **skills:** update knowledge base for n8n@2.37.7 ([9f8ef45](https://github.com/EtienneLescot/n8n-as-code/commit/9f8ef45329c048a9d408e7a33624cc8758eb4ace))
+* **skills:** minify credential ontology and document formatMb ([a8ae035](https://github.com/EtienneLescot/n8n-as-code/commit/a8ae0356c83c0c28fed8d21de50e96dd77b2a867))
+* **skills:** harden the packaging scripts per review ([ce5a0bc](https://github.com/EtienneLescot/n8n-as-code/commit/ce5a0bc9ad74d8d132979ea8f0c59475401a6f49))
+* **@n8n-as-code/skills:** stop publishing build intermediates and minify generated assets ([255301e](https://github.com/EtienneLescot/n8n-as-code/commit/255301e458408c972672d5f9462828c509d5f629))
+* **skills:** fix false-positive validation for multiOptions, versioned options and defaults ([7637c2e](https://github.com/EtienneLescot/n8n-as-code/commit/7637c2e931718b51f9de000cfa990b121ba3f820))
+* **skills:** resolve the custom-nodes sidecar from the workspace root ([3167e7a](https://github.com/EtienneLescot/n8n-as-code/commit/3167e7ae972b4c993e95ac83a7582cc42278e7e2))
+* **skills:** resolve node schemas by full type, not short name ([27bbb0b](https://github.com/EtienneLescot/n8n-as-code/commit/27bbb0bc970e1c1ba76ad0aa1460cba077224a73))
+* **skills:** report malformed ai_languageModel connections ([e86829c](https://github.com/EtienneLescot/n8n-as-code/commit/e86829c26f724413ffdbd60a5ca50922df90fdae))
+* **skills:** count only enabled models toward the needsFallback input ([c319fdb](https://github.com/EtienneLescot/n8n-as-code/commit/c319fdb4a4c89bef4a22b3f969c4115da8bee2ab))
+* **skills:** import the adapter generator as a file URL ([659019d](https://github.com/EtienneLescot/n8n-as-code/commit/659019d5133cd38008cfd8cefb4a1bc019a7f05e))
+* **skills:** reject needsFallback: true without a fallback model ([0656b5a](https://github.com/EtienneLescot/n8n-as-code/commit/0656b5a383a5959a55a7beb600d391fbd945ce8d))
+* **skills:** omit generated context root path ([9ff50bf](https://github.com/EtienneLescot/n8n-as-code/commit/9ff50bf68fa66f016fc8eab5a38257d81baa906d))
+* **skills:** generate worktree-safe agent guidance ([c2a9f90](https://github.com/EtienneLescot/n8n-as-code/commit/c2a9f9017a53419e30e15c9b0de21f6040c75331))
+* **skills:** update knowledge base for n8n@2.36.8 ([5ba5247](https://github.com/EtienneLescot/n8n-as-code/commit/5ba5247dadca1294db641b260859863252bbf48a))
+
+### Documentation
+
+* **skills:** document arrays on single-valued AI roles ([d2b818e](https://github.com/EtienneLescot/n8n-as-code/commit/d2b818e71ed404e867b2b3925d4b0d5913e200a4))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/transformer bumped from 2.0.1-rc.7 to 2.0.1
+
 ## [2.3.2](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/skills@v2.3.1...@n8n-as-code/skills@v2.3.2) (2026-07-24)
 
 ### Bug Fixes

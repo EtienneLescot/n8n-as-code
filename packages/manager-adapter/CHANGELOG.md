@@ -1,5 +1,12 @@
 # @n8n-as-code/manager-adapter
 
+## [2.0.5](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.4...@n8n-as-code/manager-adapter@v2.0.5) (2026-09-11)
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/workflow-core bumped from 2.0.1-rc.7 to 2.0.1
+
 ## [2.0.4](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/manager-adapter@v2.0.3...@n8n-as-code/manager-adapter@v2.0.4) (2026-05-21)
 
 ### Bug Fixes

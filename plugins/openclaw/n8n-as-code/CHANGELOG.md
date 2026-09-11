@@ -1,5 +1,26 @@
 # @n8n-as-code/n8nac
 
+## [2.3.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.2.1...@n8n-as-code/n8nac@v2.3.0) (2026-09-11)
+
+### Features
+
+* **skills,cli:** benchmark-driven agent efficiency (batch, compact, --pin) ([d633070](https://github.com/EtienneLescot/n8n-as-code/commit/d633070762e3c2e2e7baab8b22f06db2e0e9793d))
+* **cli:** warn that push releases published workflows, add --draft ([d32ff51](https://github.com/EtienneLescot/n8n-as-code/commit/d32ff515d949f51c54e535b8354930dd3f7f4208))
+
+### Bug Fixes
+
+* **skills:** a malformed cap must not silently reshape compact output ([cdfe16b](https://github.com/EtienneLescot/n8n-as-code/commit/cdfe16bc821fc4bcaee9dba2987b8107e341fe08))
+* **cli,skills,mcp:** cut agent round-trips and startup cost, plus the fixes the benchmark surfaced ([34395b5](https://github.com/EtienneLescot/n8n-as-code/commit/34395b58017ca2645cd3f143aa58590393036e00))
+* **skills:** harden batch command per review (tty hang, error boundary, relevance parity, bounded compact) ([fe74891](https://github.com/EtienneLescot/n8n-as-code/commit/fe74891a08f28117fe6c45a538f02daa889f391e))
+* **skills:** drop benchmark-flavored skeleton, add universal examples-fetching rule ([a35788a](https://github.com/EtienneLescot/n8n-as-code/commit/a35788af93c9fe97774c34c476842246ecccaf81))
+* **skills:** import the adapter generator as a file URL ([659019d](https://github.com/EtienneLescot/n8n-as-code/commit/659019d5133cd38008cfd8cefb4a1bc019a7f05e))
+* **build:** migrate openclaw plugin to subpath export and pin openclaw ([14395f5](https://github.com/EtienneLescot/n8n-as-code/commit/14395f58e02250cf0c5ccf765e3f96d02f7800bd))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/workflow-core bumped from 2.0.1-rc.7 to 2.0.1
+
 ## [2.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/n8nac@v2.2.0...@n8n-as-code/n8nac@v2.2.1) (2026-07-24)
 
 ### Bug Fixes

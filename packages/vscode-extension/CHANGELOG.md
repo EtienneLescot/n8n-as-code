@@ -1,5 +1,30 @@
 # n8n-as-code
 
+## [2.42.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.40.0...n8n-as-code@v2.42.0) (2026-09-11)
+
+### Features
+
+* **levels:** level awareness in generated context, L0 disclaimers, VS Code slider ([5e69983](https://github.com/EtienneLescot/n8n-as-code/commit/5e699839775267b3ddfcb843fa47988c43280d3a))
+
+### Bug Fixes
+
+* **vscode-extension:** drop stale running operation events after abort and terminal state ([ddaf24b](https://github.com/EtienneLescot/n8n-as-code/commit/ddaf24bbb6644a9bada7c7f0d1b4fd83ea41e98b))
+* **vscode-extension:** coalesce running operation stream events to unfreeze workbench chat ([6acf0d7](https://github.com/EtienneLescot/n8n-as-code/commit/6acf0d70c1601f6b7029863cb14a60aed26a9f07))
+* **release:** publish pre-releases with next dist-tag and mirror to rc ([6d85ea3](https://github.com/EtienneLescot/n8n-as-code/commit/6d85ea3a4dcd17562a58d88afc1a37453cdd6314))
+* **vscode-extension:** add 'workflow-tree' to ExternalNavigationSource panelKind ([be613f8](https://github.com/EtienneLescot/n8n-as-code/commit/be613f806bdf3b1fe794e176dce3bc2d6fbd0ff4))
+* **vscode-extension:** strip n8n-auth from IdP proxy requests and route browser opens through navigation broker ([2af664d](https://github.com/EtienneLescot/n8n-as-code/commit/2af664d953dc7a64d305607f98b5f4d69796036a))
+* **vscode-extension:** enforce TLS verification and restrict credential forwarding to secure transports ([da3c838](https://github.com/EtienneLescot/n8n-as-code/commit/da3c83856aa178731ae717bc9a627fce4763317f))
+* **vscode-extension:** address PR review feedback on SSO flow, URL resolution and modal accessibility ([03076cf](https://github.com/EtienneLescot/n8n-as-code/commit/03076cf172423b18347b7e29a51cb01c80c3a81a))
+* **vscode-extension:** resolve SSO auth black screen, add open in browser and session token support ([e1d74f2](https://github.com/EtienneLescot/n8n-as-code/commit/e1d74f20c21c37742dc9f098e761e9609ba45667))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.5-rc.7 to 2.0.5
+    * @n8n-as-code/skills bumped from 2.4.0-rc.7 to 2.4.0
+    * @n8n-as-code/workflow-core bumped from 2.0.1-rc.7 to 2.0.1
+    * n8nac bumped from 2.6.0-rc.7 to 2.6.0
+
 ## [2.40.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8n-as-code@v2.38.0...n8n-as-code@v2.40.0) (2026-07-24)
 
 ### Bug Fixes

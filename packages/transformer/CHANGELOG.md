@@ -1,5 +1,14 @@
 # @n8n-as-code/transformer
 
+## [2.0.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v2.0.0...@n8n-as-code/transformer@v2.0.1) (2026-09-11)
+
+### Bug Fixes
+
+* **cli,skills,mcp:** cut agent round-trips and startup cost, plus the fixes the benchmark surfaced ([34395b5](https://github.com/EtienneLescot/n8n-as-code/commit/34395b58017ca2645cd3f143aa58590393036e00))
+* **transformer:** persist continueOnFail and pass through unmodelled node properties ([e03e448](https://github.com/EtienneLescot/n8n-as-code/commit/e03e4482b21522f04ee625abf666c44201e05ced))
+* **transformer:** allow several sub-nodes on one AI input type ([f0d701c](https://github.com/EtienneLescot/n8n-as-code/commit/f0d701cb4b96b5e4a145331bbbb78097615a46b7))
+* **transformer:** persist disabled, notes and notesInFlow through workflow round-trip ([904951b](https://github.com/EtienneLescot/n8n-as-code/commit/904951b99c886b81a4c180270f33ecfbd8ec84bd))
+
 ## [2.0.0](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.2.1...@n8n-as-code/transformer@v2.0.0) (2026-05-06)
 
 ## [1.2.1](https://github.com/EtienneLescot/n8n-as-code/compare/@n8n-as-code/transformer@v1.2.0...@n8n-as-code/transformer@v1.2.1) (2026-04-24)

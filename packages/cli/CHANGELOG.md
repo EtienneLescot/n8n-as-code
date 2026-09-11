@@ -1,5 +1,46 @@
 # @n8n-as-code/cli
 
+## [2.6.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.5.0...n8nac@v2.6.0) (2026-09-11)
+
+### Features
+
+* **skills,cli:** benchmark-driven agent efficiency (batch, compact, --pin) ([d633070](https://github.com/EtienneLescot/n8n-as-code/commit/d633070762e3c2e2e7baab8b22f06db2e0e9793d))
+* **levels:** level awareness in generated context, L0 disclaimers, VS Code slider ([5e69983](https://github.com/EtienneLescot/n8n-as-code/commit/5e699839775267b3ddfcb843fa47988c43280d3a))
+* **cli:** native MCP usage levels and per-instance schema overlay (L1) ([67cc38f](https://github.com/EtienneLescot/n8n-as-code/commit/67cc38f7869f212a346082a928b11df54ad71da1))
+* **cli:** mark folder-login as experimental and document SSO/2FA workaround ([9b80f1b](https://github.com/EtienneLescot/n8n-as-code/commit/9b80f1b7d7b0583d13553d1c5f5aa7142134b9e6))
+* **cli:** optional /rest session folder-source for folderSync pull ([fe0fb5c](https://github.com/EtienneLescot/n8n-as-code/commit/fe0fb5c779824916bd1072306bcbbf5bcc6a7b3e))
+* **cli:** warn that push releases published workflows, add --draft ([d32ff51](https://github.com/EtienneLescot/n8n-as-code/commit/d32ff515d949f51c54e535b8354930dd3f7f4208))
+
+### Bug Fixes
+
+* **cli,skills,mcp:** cut agent round-trips and startup cost, plus the fixes the benchmark surfaced ([34395b5](https://github.com/EtienneLescot/n8n-as-code/commit/34395b58017ca2645cd3f143aa58590393036e00))
+* **cli:** branch setup next-step hint on managed-local mode ([364c41c](https://github.com/EtienneLescot/n8n-as-code/commit/364c41c9cae6745bccc7d5467577b4589636b82a))
+* **cli:** include parser discriminator capture omitted from previous commit ([a51a663](https://github.com/EtienneLescot/n8n-as-code/commit/a51a6631b66d96b602d76a36a02de4dfd3b21536))
+* **review:** overlay descriptor identity, level parsing, refresh fingerprint, fetch timeout ([1bbd2ef](https://github.com/EtienneLescot/n8n-as-code/commit/1bbd2ef35e132af2ee6dc89374d40dccfede3ac2))
+* **review:** fail-closed MCP redirects and machine-readable --print-tag ([fdc3c36](https://github.com/EtienneLescot/n8n-as-code/commit/fdc3c366d5c007395ee2e48cc59a3cd8217751a3))
+* **validation:** automatic instance probing, strict RLC shapes and ontology source selection ([b37a256](https://github.com/EtienneLescot/n8n-as-code/commit/b37a256cb4f01ade8476a06de7447bff646e0a97))
+* **validation:** enforce server-equivalent node gating and pre-push instance validation ([81cf635](https://github.com/EtienneLescot/n8n-as-code/commit/81cf6356311244f6bc139b9af73a9603aa0a68ef))
+* **transformer:** persist continueOnFail and pass through unmodelled node properties ([e03e448](https://github.com/EtienneLescot/n8n-as-code/commit/e03e4482b21522f04ee625abf666c44201e05ced))
+* **cli:** block folderAuth over cleartext non-loopback HTTP without opt-in ([95d16a4](https://github.com/EtienneLescot/n8n-as-code/commit/95d16a41f1e0f6a22a802dc2d142c916a362fb96))
+* **cli:** resolve CodeRabbit review feedback on fail-closed rethrow, login redirect and password flags ([db15922](https://github.com/EtienneLescot/n8n-as-code/commit/db1592203d001e35d86decf3f72dee2abe8e0862))
+* **cli:** resolve review feedback on folder-login scoping and 403 license degrade ([d166bab](https://github.com/EtienneLescot/n8n-as-code/commit/d166babdb9b3308f91295301742693e298e6e1d5))
+* **cli:** remove duplicate workflowRelativePathToAbsolute declaration ([8251010](https://github.com/EtienneLescot/n8n-as-code/commit/8251010c119e0c669ab40ed3e44425d7df1d862c))
+* **cli:** update state filename on rename and prioritize disk scan ([ce2a110](https://github.com/EtienneLescot/n8n-as-code/commit/ce2a1103de1c8335effd7fab75c6925a692c8246))
+* **cli:** let uses() accept an array on single-valued AI roles ([a2cebca](https://github.com/EtienneLescot/n8n-as-code/commit/a2cebca15eb886a950528a779c56c65ff0caf6ac))
+* **cli:** exit non-zero when push encounters conflict ([46c372e](https://github.com/EtienneLescot/n8n-as-code/commit/46c372eca4ab9e7cfb877ac69584c8ec6c80380e))
+* **transformer:** persist disabled, notes and notesInFlow through workflow round-trip ([904951b](https://github.com/EtienneLescot/n8n-as-code/commit/904951b99c886b81a4c180270f33ecfbd8ec84bd))
+* **cli:** reconcile local state before attempting the draft re-pin ([2a0e0ab](https://github.com/EtienneLescot/n8n-as-code/commit/2a0e0ab4c1caceb0fb8a8864051052ca48fe54eb))
+* repair mojibake em-dashes, drop BOM, label code fences ([7069711](https://github.com/EtienneLescot/n8n-as-code/commit/706971154de51d2baa213975856527cc51fa5347))
+
+### Dependencies
+
+* The following workspace dependencies were updated
+    * @n8n-as-code/manager-adapter bumped from 2.0.5-rc.7 to 2.0.5
+    * @n8n-as-code/mcp bumped from 2.2.0-rc.7 to 2.2.0
+    * @n8n-as-code/skills bumped from 2.4.0-rc.7 to 2.4.0
+    * @n8n-as-code/transformer bumped from 2.0.1-rc.7 to 2.0.1
+    * @n8n-as-code/workflow-core bumped from 2.0.1-rc.7 to 2.0.1
+
 ## [2.5.0](https://github.com/EtienneLescot/n8n-as-code/compare/n8nac@v2.4.1...n8nac@v2.5.0) (2026-07-24)
 
 ### Features
