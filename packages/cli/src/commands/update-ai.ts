@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { quoteShellArg } from '../utils/shell.js';
+import { findNewerPublishedVersion } from '../utils/version-check.js';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve, delimiter, basename } from 'path';
@@ -82,17 +83,29 @@ function isN8nacOnShellPath(): boolean {
         && extensions.some((ext) => existsSync(join(dir, `n8nac${ext}`))));
 }
 
+/**
+ * The monorepo entry point, when the CLI is running from a dev checkout rather than an
+ * install. Used both to emit a fast command and to stay quiet about version drift: a
+ * maintainer on a locally bumped version should not be told to update.
+ */
+function devCheckoutEntrypoint(): string | undefined {
+    const entrypoint = process.argv[1] ? resolve(process.argv[1]) : '';
+    return entrypoint
+        && !entrypoint.includes(`${join('node_modules', '')}`)
+        && entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js'))
+        && existsSync(entrypoint)
+        ? entrypoint
+        : undefined;
+}
+
 function inferFastCliCommand(projectRoot: string): string | undefined {
     if (process.env.N8NAC_COMMAND || hasWorkspaceDevCommand(projectRoot)) {
         return undefined;
     }
 
-    const entrypoint = process.argv[1] ? resolve(process.argv[1]) : '';
-    if (entrypoint
-        && !entrypoint.includes(`${join('node_modules', '')}`)
-        && entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js'))
-        && existsSync(entrypoint)) {
-        return `node ${quoteShellArg(entrypoint)}`;
+    const devEntrypoint = devCheckoutEntrypoint();
+    if (devEntrypoint) {
+        return `node ${quoteShellArg(devEntrypoint)}`;
     }
 
     // Prefer the installed binary: npx pays npm's own startup on every invocation.
@@ -147,6 +160,33 @@ async function createAiContextGenerator(): Promise<AiContextGeneratorInstance> {
 
     const mod = await import('@n8n-as-code/skills');
     return new mod.AiContextGenerator();
+}
+
+/**
+ * One dim line when a newer version is published. Runs only after update-ai has already
+ * succeeded, and swallows everything: a version check has no business failing a command.
+ * Written to stderr, like the refresh notice, so machine-readable stdout stays clean.
+ *
+ * Built by concatenation rather than a template literal so the backticks in the message
+ * are plainly literal.
+ */
+async function noticeIfOutdated(): Promise<void> {
+    try {
+        if (devCheckoutEntrypoint()) return;
+
+        const current = getCliVersion();
+        const distTag = getDistTag();
+        const published = await findNewerPublishedVersion(current, distTag);
+        if (!published) return;
+
+        console.error(chalk.dim(
+            'ℹ  n8nac: ' + published + ' is published, this is ' + current + '. '
+            + 'Update with `npm i n8nac@' + (distTag ?? 'latest') + '`, adding `-g` if you installed '
+            + 'globally, then rerun `update-ai`.',
+        ));
+    } catch {
+        // Never surface a version check to the user as a failure.
+    }
 }
 
 export class UpdateAiCommand {
@@ -261,6 +301,8 @@ export class UpdateAiCommand {
                 console.log(chalk.gray('   ✔ .agents/skills: Portable n8n-architect skill fallback'));
                 console.log(chalk.gray('   ✔ n8n-workflows.d.ts: TypeScript stubs (per environment)'));
                 console.log(chalk.gray('   ✔ Source of truth: n8n-nodes-technical.json (via @n8n-as-code/skills)\n'));
+
+                await noticeIfOutdated();
             } else if (updatedCount > 0 || existsSync(join(projectRoot, 'AGENTS.md'))) {
                 // Single dim notice so the user knows a refresh happened — written to stderr
                 // to avoid corrupting machine-readable stdout output (e.g. `n8nac list --raw`)
