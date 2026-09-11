@@ -1,8 +1,8 @@
 {
   "mode": "rc",
   "changed": true,
-  "rcNumber": 6,
-  "releaseVersion": "2.6.0-rc.6",
+  "rcNumber": 7,
+  "releaseVersion": "2.6.0-rc.7",
   "packages": [
     {
       "name": "@n8n-as-code/transformer",
@@ -12,7 +12,7 @@
       "publishTarget": "npm",
       "tagPrefix": "@n8n-as-code/transformer@",
       "internalDependencies": [],
-      "currentVersion": "2.0.0",
+      "currentVersion": "2.0.1-rc.6",
       "latestStableTag": "@n8n-as-code/transformer@v2.0.0",
       "latestStableVersion": "2.0.0",
       "bump": "patch",
@@ -42,9 +42,10 @@
         }
       ],
       "reasons": [
-        "direct"
+        "direct",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.1-rc.6"
+      "rcVersion": "2.0.1-rc.7"
     },
     {
       "name": "@n8n-as-code/telemetry",
@@ -75,7 +76,7 @@
       "internalDependencies": [
         "@n8n-as-code/transformer"
       ],
-      "currentVersion": "2.0.0",
+      "currentVersion": "2.0.1-rc.6",
       "latestStableTag": "@n8n-as-code/workflow-core@v2.0.0",
       "latestStableVersion": "2.0.0",
       "bump": "patch",
@@ -84,9 +85,10 @@
       "targetVersion": "2.0.1",
       "commits": [],
       "reasons": [
-        "dependency:@n8n-as-code/transformer"
+        "dependency:@n8n-as-code/transformer",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.1-rc.6"
+      "rcVersion": "2.0.1-rc.7"
     },
     {
       "name": "@n8n-as-code/manager-adapter",
@@ -98,7 +100,7 @@
       "internalDependencies": [
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.0.4",
+      "currentVersion": "2.0.5-rc.6",
       "latestStableTag": "@n8n-as-code/manager-adapter@v2.0.4",
       "latestStableVersion": "2.0.4",
       "bump": "patch",
@@ -107,9 +109,10 @@
       "targetVersion": "2.0.5",
       "commits": [],
       "reasons": [
-        "dependency:@n8n-as-code/workflow-core"
+        "dependency:@n8n-as-code/workflow-core",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.0.5-rc.6"
+      "rcVersion": "2.0.5-rc.7"
     },
     {
       "name": "@n8n-as-code/skills",
@@ -122,7 +125,7 @@
         "@n8n-as-code/telemetry",
         "@n8n-as-code/transformer"
       ],
-      "currentVersion": "2.3.2",
+      "currentVersion": "2.4.0-rc.6",
       "latestStableTag": "@n8n-as-code/skills@v2.3.2",
       "latestStableVersion": "2.3.2",
       "bump": "minor",
@@ -130,6 +133,16 @@
       "changed": true,
       "targetVersion": "2.4.0",
       "commits": [
+        {
+          "sha": "1192b25e0f26e4d727801bc8483d9ccdef647669",
+          "subject": "fix(skills): align the test dist-tag resolver with the -rc rule",
+          "bump": "patch"
+        },
+        {
+          "sha": "38f344690f5112f4f47d9af28afecd43f6fd3dea",
+          "subject": "fix(skills): stop pinning @next on release branches by name",
+          "bump": "patch"
+        },
         {
           "sha": "971bca09cec87c92a2d5b43eaf9053da9c84dd75",
           "subject": "fix(ci): stamp n8nVersion before the release commit",
@@ -317,9 +330,10 @@
         }
       ],
       "reasons": [
-        "direct"
+        "direct",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.4.0-rc.6"
+      "rcVersion": "2.4.0-rc.7"
     },
     {
       "name": "n8nac",
@@ -336,7 +350,7 @@
         "@n8n-as-code/transformer",
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.5.0",
+      "currentVersion": "2.6.0-rc.6",
       "latestStableTag": "n8nac@v2.5.0",
       "latestStableVersion": "2.5.0",
       "bump": "minor",
@@ -466,9 +480,10 @@
         }
       ],
       "reasons": [
-        "direct"
+        "direct",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.6.0-rc.6"
+      "rcVersion": "2.6.0-rc.7"
     },
     {
       "name": "@n8n-as-code/mcp",
@@ -482,7 +497,7 @@
         "@n8n-as-code/telemetry",
         "n8nac"
       ],
-      "currentVersion": "2.1.2",
+      "currentVersion": "2.2.0-rc.6",
       "latestStableTag": "@n8n-as-code/mcp@v2.1.2",
       "latestStableVersion": "2.1.2",
       "bump": "minor",
@@ -512,9 +527,10 @@
         }
       ],
       "reasons": [
-        "direct"
+        "direct",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.2.0-rc.6"
+      "rcVersion": "2.2.0-rc.7"
     },
     {
       "name": "n8n-as-code",
@@ -530,7 +546,7 @@
         "@n8n-as-code/workflow-core",
         "n8nac"
       ],
-      "currentVersion": "2.40.0",
+      "currentVersion": "2.42.0-rc.6",
       "latestStableTag": "n8n-as-code@v2.40.0",
       "latestStableVersion": "2.40.0",
       "bump": "minor",
@@ -585,9 +601,10 @@
         }
       ],
       "reasons": [
-        "direct"
+        "direct",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.42.0-rc.6"
+      "rcVersion": "2.42.0-rc.7"
     },
     {
       "name": "@n8n-as-code/n8nac",
@@ -600,7 +617,7 @@
         "@n8n-as-code/telemetry",
         "@n8n-as-code/workflow-core"
       ],
-      "currentVersion": "2.2.1",
+      "currentVersion": "2.3.0-rc.6",
       "latestStableTag": "@n8n-as-code/n8nac@v2.2.1",
       "latestStableVersion": "2.2.1",
       "bump": "minor",
@@ -650,9 +667,10 @@
         }
       ],
       "reasons": [
-        "direct"
+        "direct",
+        "version-ahead-of-tag"
       ],
-      "rcVersion": "2.3.0-rc.6"
+      "rcVersion": "2.3.0-rc.7"
     }
   ]
 }
