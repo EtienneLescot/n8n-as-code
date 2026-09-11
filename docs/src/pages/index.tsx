@@ -302,12 +302,15 @@ function CallToAction(): ReactNode {
             <div className={styles.installLabel}>install</div>
             <div className={styles.installBody}>
               <div>
-                <span className={styles.prompt}>$</span> npm i -g @n8n-as-code/cli
+                <span className={styles.prompt}>$</span> npm install -g n8nac
               </div>
               <div>
-                <span className={styles.prompt}>$</span> n8nac init
+                <span className={styles.prompt}>$</span> n8nac env add Dev --base-url &lt;your-n8n-url&gt; --pin
               </div>
-              <div className={styles.dim}>skill installed · ontology ready</div>
+              <div>
+                <span className={styles.prompt}>$</span> n8nac update-ai
+              </div>
+              <div className={styles.dim}>AGENTS.md written · agent skill ready</div>
             </div>
           </div>
         </div>
