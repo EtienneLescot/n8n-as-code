@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { quoteShellArg } from '../utils/shell.js';
 import path from 'path';
 import chalk from 'chalk';
 import { TypeScriptParser, WorkflowBuilder } from '@n8n-as-code/transformer';
@@ -1235,6 +1236,3 @@ function quoteString(value: string): string {
     return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
-function quoteShellArg(value: string): string {
-    return `'${value.replace(/'/g, `'\\''`)}'`;
-}

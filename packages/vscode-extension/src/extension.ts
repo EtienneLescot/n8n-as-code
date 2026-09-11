@@ -2444,8 +2444,15 @@ function resolveAiContextManagerCommandOverride(context: vscode.ExtensionContext
     return `node ${quoteShellArg(siblingManagerCliPath)}`;
 }
 
+// Mirrors packages/cli/src/utils/shell.ts. Duplicated on purpose: a three-line pure
+// function is not worth widening the n8nac public type surface across a package boundary.
+// cmd.exe does not strip POSIX single quotes, so a single-quoted path reaches the program
+// with the quotes still attached and fails on the first space. Double quotes are understood
+// by cmd.exe, PowerShell and bash alike, and Windows forbids `"` in a path.
 function quoteShellArg(value: string): string {
-    return `'${value.replace(/'/g, `'\\''`)}'`;
+    return process.platform === 'win32'
+        ? `"${value}"`
+        : `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 async function updateAiContextAfterSyncInitialization(

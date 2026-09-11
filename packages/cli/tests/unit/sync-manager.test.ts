@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { quoteShellArg } from '../../src/utils/shell.js';
 import os from 'os';
 import path from 'path';
 import { describe, it, expect, vi } from 'vitest';
@@ -74,7 +75,7 @@ describe('SyncManager push filename contract', () => {
         const outsidePath = path.join(TMP, 'outside-workflow.workflow.ts');
         expect(() => manager.resolvePushTarget(outsidePath)).toThrowError(
             expect.objectContaining({
-                message: expect.stringContaining("Run               : n8nac push '")
+                message: expect.stringContaining('Run               : n8nac push ')
             })
         );
     });
@@ -109,7 +110,7 @@ describe('SyncManager push filename contract', () => {
         );
         expect(() => manager.resolvePushTarget(path.join(TMP, 'outside workflow.workflow.ts'))).toThrowError(
             expect.objectContaining({
-                message: expect.stringContaining("Run               : n8nac push './outside workflow.workflow.ts'")
+                message: expect.stringContaining(`Run               : n8nac push ${quoteShellArg('./outside workflow.workflow.ts')}`)
             })
         );
 

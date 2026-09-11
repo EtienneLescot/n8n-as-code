@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { quoteShellArg } from '../../utils/shell.js';
 import path from 'path';
 import EventEmitter from 'events';
 import { N8nApiClient } from './n8n-api-client.js';
@@ -395,7 +396,7 @@ export class SyncManager extends EventEmitter {
             const suggestedPath = scopeRelativeToCwd === '' ? `./${trimmed}` : path.join(scopeRelativeToCwd, trimmed);
             throw new Error(
                 `Cannot push "${trimmed}": use the full relative path to the workflow file, not a bare filename.\n` +
-                `Example: n8nac push ${this.quoteShellArg(suggestedPath)}`
+                `Example: n8nac push ${quoteShellArg(suggestedPath)}`
             );
         }
 
@@ -424,7 +425,7 @@ export class SyncManager extends EventEmitter {
                 `Cannot push "${trimmed}": path is not within the active sync scope.\n` +
                 `Active sync scope : ${scopeLabel}\n` +
                 `Expected path form: ${suggestedPath}\n` +
-                `Run               : n8nac push ${this.quoteShellArg(suggestedPath)}\n\n` +
+                `Run               : n8nac push ${quoteShellArg(suggestedPath)}\n\n` +
                 `Tip: run \`n8nac workspace status --json\` and read \`workflowsPath\` to ` +
                 `get the exact relative path where workflow files must be created and pushed from.`
             );
@@ -447,9 +448,6 @@ export class SyncManager extends EventEmitter {
         }
     }
 
-    private quoteShellArg(value: string): string {
-        return `'${value.replace(/'/g, `'\\''`)}'`;
-    }
 
     public async resolveConflict(workflowId: string, filename: string, resolution: 'local' | 'remote'): Promise<void> {
         await this.ensureInitialized();

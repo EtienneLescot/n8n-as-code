@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { quoteShellArg } from '../utils/shell.js';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
 import { join, dirname, resolve, delimiter, basename } from 'path';
@@ -61,9 +62,6 @@ function readAgentsMdLevel(projectRoot: string): number | undefined {
     return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
-function quoteShellArg(value: string): string {
-    return `'${value.replace(/'/g, `'\\''`)}'`;
-}
 
 function hasWorkspaceDevCommand(projectRoot: string): boolean {
     return N8NAC_DEV_CONFIG_FILENAMES.some((filename) => existsSync(join(projectRoot, filename)));
