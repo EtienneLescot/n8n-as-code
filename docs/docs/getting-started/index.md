@@ -39,9 +39,12 @@ After that, use the sidebar to pull workflows or create a local workflow file, t
 
 ## CLI Setup
 
+Install first. `update-ai` then writes agent instructions that name the installed binary directly; without an install they fall back to `npx`, which pays npm's own startup on every one of the tens of calls an agent makes per task.
+
 ### Remote n8n environment
 
 ```bash
+npm install -g n8nac
 n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
 n8nac env auth set Dev --api-key-stdin
 n8nac env use Dev
@@ -51,6 +54,7 @@ n8nac update-ai
 ### Local managed instance
 
 ```bash
+npm install -g n8nac
 n8n-manager instance list
 n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 n8nac env use Local

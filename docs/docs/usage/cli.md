@@ -12,20 +12,40 @@ Local managed instances, Docker lifecycle, and tunnels belong to `n8n-manager`.
 
 ## Install
 
-```bash
-npx --yes n8nac <command>
-```
-
-Optional global install:
+Install once. `update-ai` then writes agent instructions that name the binary directly, instead of routing every call through npx.
 
 ```bash
 npm install -g n8nac
 ```
 
+A project-local install works too, and pins the version for everyone who clones the repo. Run it through `npx n8nac <command>`, which finds it without downloading anything.
+
+```bash
+npm install n8nac
+```
+
+Without any install, every documented command still runs:
+
+```bash
+npx --yes n8nac <command>
+```
+
+That form re-resolves the package from the registry on every call and pays npm's own startup each time. It is the right choice for a one-off or a CI step, and the wrong one for an agent that makes tens of calls per task.
+
+## Update
+
+Nothing updates the CLI on its own. Use the same command you installed with:
+
+```bash
+npm install -g n8nac@latest
+```
+
+Then rerun `n8nac update-ai`, so the generated agent context matches the version you now have.
+
 For prerelease work, keep the CLI and manager on matching tags:
 
 ```bash
-npx --yes n8nac@next <command>
+npm install -g n8nac@next
 npx --yes @n8n-as-code/n8n-manager@next <command>
 ```
 

@@ -95,9 +95,12 @@ If your agent asks for an explicit skill path, use `skills/n8n-architect`.
 
 ### CLI
 
+Install first. `update-ai` then writes agent instructions that name the local binary directly; without an install they fall back to `npx`, which pays npm's own startup on every one of the tens of calls an agent makes per task.
+
 Create a workspace environment for an existing n8n URL:
 
 ```bash
+npm install n8nac
 npx --yes n8nac env add Dev --base-url https://n8n.example.com --workflows-path workflows/dev
 printf '%s' "$N8N_API_KEY" | npx --yes n8nac env auth set Dev --api-key-stdin
 npx --yes n8nac env use Dev
@@ -107,9 +110,11 @@ npx --yes n8nac update-ai
 Or attach a local managed instance:
 
 ```bash
+npm install n8nac
 n8n-manager instance list
 npx --yes n8nac env add Local --managed-instance <id> --workflows-path workflows/local
 npx --yes n8nac env use Local
+npx --yes n8nac update-ai
 ```
 
 Then sync workflows explicitly:

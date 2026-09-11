@@ -226,6 +226,20 @@ export class AiContextGenerator {
         '> ```',
       ]
       : [];
+    // A local install is pinned: nothing refreshes it the way a dist tag refreshed the npx
+    // form, so the file has to say how. Only shown when we actually resolved one.
+    const updateNote = source === 'local-install'
+      ? [
+        ``,
+        `> The command above names the n8nac installed in this workspace, which is why it is not`,
+        `> an \`npx\` call and does not pay npm's startup. Nothing updates it on its own:`,
+        `>`,
+        '> ```bash',
+        `> npm i n8nac${distTag ? `@${distTag}` : '@latest'}`,
+        `> ${cliCmd} update-ai   # picks up the new version and rewrites this file`,
+        '> ```',
+      ]
+      : [];
     const versionStamp = options.cliVersion ? [`<!-- n8nac-version: ${options.cliVersion} -->`, ``] : [];
     const levelStamp = options.nativeMcp && Number.isInteger(options.nativeMcp.level)
       ? [`<!-- n8nac-mcp-level: ${options.nativeMcp.level} -->`, ``]
@@ -242,6 +256,7 @@ export class AiContextGenerator {
       `- n8n-manager command: \`${managerCmd}\``,
       `- n8n knowledge command: \`${skillsCmd}\``,
       ...installOnce,
+      ...updateNote,
       ``,
       `Run workspace commands from the current Git worktree root. Do not \`cd\` into the n8n-as-code source repository, n8n-manager source repository, plugin directory, or package directory to run \`${cliCmd} workspace ...\`, \`${cliCmd} list\`, \`${cliCmd} pull\`, \`${cliCmd} push\`, or \`${cliCmd} update-ai\`.`,
       ``,
