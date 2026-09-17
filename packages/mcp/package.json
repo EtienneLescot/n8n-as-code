@@ -20,7 +20,7 @@
     "@n8n-as-code/skills": "2.4.1",
     "@n8n-as-code/telemetry": "2.0.1",
     "n8nac": "2.7.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
