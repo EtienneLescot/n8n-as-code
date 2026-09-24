@@ -47,7 +47,7 @@
     "axios": "^1.13.2",
     "chokidar": "^5.0.0",
     "deep-equal": "^2.2.3",
-    "dotenv": "^17.2.3",
+    "dotenv": "^18.0.2",
     "flexsearch": "^0.8.212",
     "open": "^8.4.2"
   },
