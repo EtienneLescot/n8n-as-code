@@ -9,14 +9,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    # Legacy environment name: holds the N8N cloud credentials used by the live
-    # regression tests. Rename to `ci` some day by recreating it and re-adding
-    # the secrets (they cannot be copied programmatically).
-    environment: next
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      N8N_HOST: ${{ vars.N8N_HOST }}
-      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -73,6 +67,9 @@ jobs:
           done
           npm run check:adapters --workspace=packages/skills
           echo 'Committed generated skill files match the current SSOT.'
+
+      - name: Start n8n in Docker
+        run: node scripts/start-test-n8n.mjs "${{ steps.n8n-tag.outputs.tag }}" >> "$GITHUB_ENV"
 
       - name: Run tests
         run: npm test

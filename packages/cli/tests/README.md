@@ -31,6 +31,12 @@ N8N_HOST=https://your-instance.app.n8n.cloud
 N8N_API_KEY=your-api-key
 ```
 
+No instance at hand? With Docker running, this starts a throwaway one and writes the file from the repository root:
+
+```bash
+node scripts/start-test-n8n.mjs n8n@2.41.7 > .env.test
+```
+
 Optional variables:
 
 ```bash
@@ -41,10 +47,7 @@ The live suite intentionally stays agnostic about project naming and automatical
 
 ## CI
 
-The GitHub Actions workflow runs the live suite only when these secrets are defined:
-
-- environment variable `N8N_HOST`
-- secret `N8N_API_KEY`
+The CI and nightly workflows run the live suite against a throwaway n8n started in Docker by `scripts/start-test-n8n.mjs`, at the n8n stable version they resolve. No secret is needed.
 
 ## Current Coverage
 

@@ -8,14 +8,11 @@ on:
 jobs:
   nightly-live-tests:
     runs-on: ubuntu-latest
-    environment: next
     permissions:
       contents: write
       pull-requests: write
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      N8N_HOST: ${{ vars.N8N_HOST }}
-      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +60,10 @@ jobs:
       - name: Build all packages
         run: npm run build
 
+      - name: Start n8n in Docker
+        run: node scripts/start-test-n8n.mjs "${{ steps.n8n-tag.outputs.tag }}" >> "$GITHUB_ENV"
+
       - name: Run root test report
-        if: env.N8N_HOST != '' && env.N8N_API_KEY != ''
         run: npm test
 
       - name: Create PR for n8n version update
