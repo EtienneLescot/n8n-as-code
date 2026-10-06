@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 
 /**
  * Starts a throwaway n8n in Docker and prints the env lines the live tests read.
@@ -19,6 +19,9 @@ if (!version) {
 }
 
 const host = 'http://localhost:5678';
+
+// A container left running by an earlier run would hold both the name and the port.
+spawnSync('docker', ['rm', '-f', 'n8nac-test-n8n'], { stdio: 'ignore' });
 
 // stdout is the env file: keep the container id out of it.
 execFileSync(
