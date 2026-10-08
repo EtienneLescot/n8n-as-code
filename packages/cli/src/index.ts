@@ -8,7 +8,13 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { parsePositiveIntegerOption, parseLevelOption } from './utils/option-parsers.js';
 import { spawn } from 'child_process';
-import type { ConfigService } from './services/config-service.js';
+import type {
+    ConfigService,
+    IEnvironmentTarget,
+    IResolvedWorkspaceEnvironment,
+    IWorkspaceConfig,
+    IWorkspaceEnvironment,
+} from './services/config-service.js';
 import { installExtraCaCertificates } from './core/services/tls-certificates.js';
 import type { N8nFacadeSetupMode } from '@n8n-as-code/workflow-core';
 import {
@@ -129,6 +135,58 @@ function redactResolvedEnvironment<T extends { apiKey?: string } | undefined>(en
     if (!environment) return environment;
     const { apiKey: _apiKey, ...safeEnvironment } = environment;
     return safeEnvironment as T;
+}
+
+type WorkspaceStatusOutput = Omit<IWorkspaceConfig, 'accessStatus' | 'activeEnvironment' | 'environmentTargets' | 'environments'> & {
+    activeEnvironment?: Omit<IWorkspaceEnvironment, 'accessStatus'>;
+    environmentTargets?: Array<Omit<IEnvironmentTarget, 'accessStatus'>>;
+    environments?: Array<Omit<IWorkspaceEnvironment, 'accessStatus'>>;
+    selectedEnvironment?: Omit<IResolvedWorkspaceEnvironment, 'accessStatus' | 'apiKey'>;
+};
+
+/**
+ * Project workspace context for inspection without presenting derived reachability
+ * state as a measured result. Connectivity remains the responsibility of `env status`.
+ */
+function projectWorkspaceStatus(
+    workspaceConfig: IWorkspaceConfig,
+    selectedEnvironment?: IResolvedWorkspaceEnvironment,
+): WorkspaceStatusOutput {
+    const {
+        accessStatus: _accessStatus,
+        activeEnvironment,
+        environmentTargets,
+        environments,
+        ...workspaceContext
+    } = workspaceConfig as IWorkspaceConfig & { accessStatus?: unknown };
+
+    return {
+        ...workspaceContext,
+        ...(activeEnvironment ? {
+            activeEnvironment: (() => {
+                const { accessStatus: _activeAccessStatus, ...safeEnvironment } = activeEnvironment;
+                return safeEnvironment;
+            })(),
+        } : {}),
+        ...(environmentTargets ? {
+            environmentTargets: environmentTargets.map((target) => {
+                const { accessStatus: _targetAccessStatus, ...safeTarget } = target;
+                return safeTarget;
+            }),
+        } : {}),
+        ...(environments ? {
+            environments: environments.map((environment) => {
+                const { accessStatus: _environmentAccessStatus, ...safeEnvironment } = environment;
+                return safeEnvironment;
+            }),
+        } : {}),
+        ...(selectedEnvironment ? {
+            selectedEnvironment: (() => {
+                const { accessStatus: _selectedAccessStatus, apiKey: _apiKey, ...safeEnvironment } = selectedEnvironment;
+                return safeEnvironment;
+            })(),
+        } : {}),
+    };
 }
 
 /**
@@ -485,11 +543,11 @@ workspaceProgram.command('status')
         const selectedEnvironment = process.env.N8NAC_ENVIRONMENT?.trim() || undefined;
         const workspaceConfig = configService.getWorkspaceConfig();
         const resolvedEnvironment = selectedEnvironment
-            ? await configService.prepareEnvironment(selectedEnvironment)
-            : await (async () => { try { return await configService.prepareEnvironment(); } catch { return undefined; } })();
+            ? configService.resolveEnvironment(selectedEnvironment)
+            : (() => { try { return configService.resolveEnvironment(); } catch { return undefined; } })();
         printJsonOrText(
             options,
-            resolvedEnvironment ? { ...workspaceConfig, selectedEnvironment: redactResolvedEnvironment(resolvedEnvironment) } : workspaceConfig,
+            projectWorkspaceStatus(workspaceConfig, resolvedEnvironment),
             [
                 chalk.cyan('\nEffective n8n workspace context:\n'),
                 workspaceConfig.activeEnvironmentId ? `Env     : ${chalk.bold(resolvedEnvironment?.environmentName || workspaceConfig.activeEnvironment?.name || workspaceConfig.activeEnvironmentId)}` : undefined,
