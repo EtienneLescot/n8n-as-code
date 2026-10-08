@@ -252,8 +252,14 @@ export function parseNodeTypeDefinitions(definitions: string): ParsedNodeSchemaS
         const resource = discriminator?.[1];
         const operation = discriminator?.[2];
 
-        // Locate the `<X>Params` declaration (interface or type alias) and slice
-        // until ITS closing brace.
+        // The generator emits one combined Params alias plus one declaration
+        // for each discriminated variant. We cannot safely represent that
+        // union as one overlay section, so use the bundled schema instead.
+        const paramsDeclarations = body.match(/^\s*(?:export\s+)?(?:interface|type)\s+\w+Params\b/gm) ?? [];
+        if (paramsDeclarations.length !== 1) continue;
+
+        // Locate the sole `<X>Params` declaration (interface or type alias) and
+        // slice until its closing brace.
         const paramsOpen = body.match(/(?:interface|type)\s+\w+Params\s*(?:=\s*)?\{/);
         if (!paramsOpen || paramsOpen.index === undefined) continue;
 
