@@ -90,8 +90,8 @@ describe('compact projection (universal, no per-node heuristics)', () => {
         const compact = TypeScriptFormatter.generateCompactNodeDoc(bigSchema as any, { maxRequired: 0, maxDesc: 0 });
         // Assert on the required entries themselves: the gating-flag block below uses the
         // same `//   - ` prefix, so a prefix match would pass for the wrong reason.
-        expect(compact).not.toMatch('param0');
-        expect(compact).not.toMatch('param1');
+        expect(compact).not.toMatch(/^\/\/   - param0:/m);
+        expect(compact).not.toMatch(/^\/\/   - param1:/m);
         // The reader must be able to tell the list was emptied, not that it was empty.
         expect(compact).toMatch('more required');
         expect(compact).not.toMatch('Consume the Gmail API');
@@ -110,6 +110,145 @@ describe('compact projection (universal, no per-node heuristics)', () => {
         expect(compact).toMatch('req2');
         expect(compact).not.toMatch('req3');
         expect(compact).toMatch('+7 more required');
+    });
+
+    test('projects current ungated options and multiOptions into the compact snippet', () => {
+        const schema = {
+            name: 'merge',
+            type: 'n8n-nodes-base.merge',
+            displayName: 'Merge',
+            description: 'Merge items',
+            version: [1, 2],
+            properties: [
+                { name: 'resource', type: 'options', options: [{ value: 'input' }] },
+                { name: 'operation', type: 'options', options: [{ value: 'chooseBranch' }] },
+                {
+                    name: 'mode',
+                    type: 'options',
+                    displayOptions: { show: { '@version': [1] } },
+                    options: [{ value: 'obsolete' }],
+                },
+                {
+                    name: 'mode',
+                    type: 'options',
+                    displayOptions: { show: { '@version': [2] } },
+                    options: [{ value: 'append' }, { value: 'combine' }],
+                },
+                {
+                    name: 'mode',
+                    type: 'options',
+                    displayOptions: { show: { '@version': [2] } },
+                    options: [{ value: 'combine' }, { value: 'combineBySql' }],
+                },
+                {
+                    name: 'mode',
+                    type: 'options',
+                    displayOptions: { show: { resource: ['input'] } },
+                    options: [{ value: 'gated' }],
+                },
+                {
+                    name: 'fields',
+                    type: 'multiOptions',
+                    displayOptions: { show: { '@version': [2] } },
+                    options: [{ value: 'id' }, { value: 'name' }],
+                },
+                {
+                    name: 'stale',
+                    type: 'options',
+                    displayOptions: { hide: { '@version': [2] } },
+                    options: [{ value: 'old' }],
+                },
+            ],
+        };
+
+        const doc = TypeScriptFormatter.generateCompactNodeDoc(schema as any, { maxEnum: 3 });
+
+        expect(doc).toContain('// mode: append | combine | combineBySql');
+        expect(doc).toContain('// fields: id | name');
+        expect(doc).toContain('  mode: "append",');
+        expect(doc).toContain('  fields: ["id"],');
+        expect(doc).not.toContain('obsolete');
+        expect(doc).not.toContain('gated');
+        expect(doc).not.toContain('stale');
+        expect(doc.match(/^\/\/ mode:/gm)).toHaveLength(1);
+    });
+
+    test('caps general option values while retaining a usable first value', () => {
+        const schema = {
+            name: 'merge',
+            type: 'n8n-nodes-base.merge',
+            displayName: 'Merge',
+            description: 'Merge items',
+            version: 1,
+            properties: [{
+                name: 'mode',
+                type: 'options',
+                options: [
+                    { value: 'append' },
+                    { value: 'combine' },
+                    { value: 'combineBySql' },
+                    { value: 'chooseBranch' },
+                ],
+            }],
+        };
+
+        const doc = TypeScriptFormatter.generateCompactNodeDoc(schema as any, { maxEnum: 2 });
+
+        expect(doc).toContain('// mode: append | combine | +2 more');
+        expect(doc).toContain('  mode: "append",');
+        expect(doc).not.toContain("  mode: ['append']");
+    });
+
+    test('preserves literal option values in the snippet', () => {
+        const schema = {
+            name: 'example',
+            type: 'n8n-nodes-base.example',
+            displayName: 'Example',
+            description: 'Example node',
+            version: 1,
+            properties: [
+                { name: 'attempts', type: 'options', options: [{ value: 2 }] },
+                { name: 'flags', type: 'multiOptions', options: [{ value: false }] },
+                { name: 'label', type: 'options', options: [{ value: "O'Reilly\n" }] },
+            ],
+        };
+
+        const doc = TypeScriptFormatter.generateCompactNodeDoc(schema as any);
+
+        expect(doc).toContain('  attempts: 2,');
+        expect(doc).toContain('  flags: [false],');
+        expect(doc).toContain("  label: \"O'Reilly\\n\",");
+    });
+
+    test.each([
+        ['no disabledOptions stays enabled', undefined, true],
+        ['disabled on an old version stays enabled', { show: { '@version': [1] } }, true],
+        ['disabled on the current version is excluded', { show: { '@version': [2] } }, false],
+        ['disabled by a current-version comparator is excluded', { show: { '@version': [{ _cnd: { gte: 2 } }] } }, false],
+        ['current-version disabled hide stays enabled', { hide: { '@version': [2] } }, true],
+        ['other-version disabled hide is excluded', { hide: { '@version': [1] } }, false],
+        ['empty disabledOptions stays conservatively excluded', {}, false],
+        ['empty show with current hide stays enabled', { show: {}, hide: { '@version': [2] } }, true],
+        ['empty maps stay conservatively excluded', { show: {}, hide: {} }, false],
+        ['old show with empty hide stays enabled', { show: { '@version': [1] }, hide: {} }, true],
+        ['parameter-dependent disabled state stays excluded', { show: { resource: ['input'] } }, false],
+        ['malformed disabledOptions stays conservatively excluded', { show: 'invalid' }, false],
+    ])('handles %s', (_label, disabledOptions, expected) => {
+        const doc = TypeScriptFormatter.generateCompactNodeDoc({
+            name: 'versioned',
+            type: 'n8n-nodes-base.versioned',
+            displayName: 'Versioned',
+            description: 'Versioned node',
+            version: [1, 2],
+            properties: [{
+                name: 'choice',
+                type: 'options',
+                disabledOptions,
+                options: [{ value: 'enabled' }],
+            }],
+        } as any);
+        const hasProjection = doc.includes('// choice:') && /\n  choice:\s/.test(doc);
+        expect(hasProjection).toBe(expected);
     });
 });
 
@@ -132,6 +271,59 @@ const describeWithOntology = fs.existsSync(ontologyPath) ? describe : describe.s
 describeWithOntology('compact never advertises a pair the validator rejects', () => {
     // `//   <resource>[ (<gate>=<value>, ...)]: op | op | ...`
     const groupLine = /^\/\/   ([^:(]+?)(?: \(([^)]*)\))?: (.+)$/;
+
+    test('every node with an applicable ungated enum projects its first field', () => {
+        const ontology = JSON.parse(fs.readFileSync(ontologyPath, 'utf8'));
+        let checked = 0;
+
+        for (const node of Object.values<any>(ontology.nodes)) {
+            if (!node.type) continue;
+            const firstUngated = (node.schema?.properties ?? []).find((prop: any) => {
+                const type = String(prop.type || '').toLowerCase();
+                const displayOptions = prop.displayOptions;
+                const gated = displayOptions && (Object.keys(displayOptions.show ?? {}).length > 0 ||
+                    Object.keys(displayOptions.hide ?? {}).length > 0);
+                return (type === 'options' || type === 'multioptions') &&
+                    Array.isArray(prop.options) && prop.options.length > 0 &&
+                    prop.name !== 'resource' && prop.name !== 'operation' &&
+                    !gated;
+            });
+            if (!firstUngated) continue;
+            const doc = TypeScriptFormatter.generateCompactNodeDoc({
+                name: node.name,
+                type: node.type,
+                displayName: node.displayName,
+                description: node.description,
+                version: node.version,
+                properties: node.schema?.properties ?? [],
+                parameterGating: node.metadata?.parameterGating,
+            });
+            expect(doc).toContain(`// ${firstUngated.name}:`);
+            const fieldName = String(firstUngated.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            expect(doc).toMatch(new RegExp(`\\n  (?:${fieldName}|['"]${fieldName}['"]):\\s`));
+            expect(doc).not.toContain('= { /* parameters */ };');
+            checked++;
+        }
+
+        expect(checked).toBeGreaterThan(100);
+    });
+
+    test('bundled Merge projects its mode values into compact output', () => {
+        const ontology = JSON.parse(fs.readFileSync(ontologyPath, 'utf8'));
+        const node = ontology.nodes.merge;
+        const doc = TypeScriptFormatter.generateCompactNodeDoc({
+            name: node.name,
+            type: node.type,
+            displayName: node.displayName,
+            description: node.description,
+            version: node.version,
+            properties: node.schema?.properties ?? [],
+            parameterGating: node.metadata?.parameterGating,
+        });
+
+        expect(doc).toContain('// mode: append | combine | combineBySql | chooseBranch');
+        expect(doc).toContain('  mode: "append",');
+    });
 
     test('every printed (resource, operation) pair validates', async () => {
         const ontology = JSON.parse(fs.readFileSync(ontologyPath, 'utf8'));

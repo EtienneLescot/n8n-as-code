@@ -317,7 +317,7 @@ ${interfaceBody}
         // The discriminators an author actually needs. Without them compact is a search
         // result rather than a schema: a builder reported paying a second full lookup per
         // node because the snippet body was an empty placeholder.
-        const resources = this.unionOptionValues(allProps, 'resource', latestVersion);
+        const resources = this.unionOptionValues(allProps, 'resource', latestVersion).map(String);
         const operationGroups = this.operationGroups(allProps, latestVersion, new Set(resources));
 
         if (resources.length > 0) {
@@ -339,6 +339,26 @@ ${interfaceBody}
             }
         }
 
+        // Top-level option fields without parameter gates are useful discriminators too.
+        // Keep resource/operation in their established sections, and union only variants
+        // that apply at the latest version so the snippet remains authorable.
+        const generalOptions = new Map<string, { type: string; values: unknown[] }>();
+        for (const prop of allProps) {
+            const type = String(prop.type || '').toLowerCase();
+            if (!ENUM_TYPES.has(type) || prop.name === 'resource' || prop.name === 'operation') continue;
+            if (!this.isUngatedOption(prop, latestVersion)) continue;
+            if (generalOptions.has(prop.name)) continue;
+            const values = this.unionOptionValues(allProps, prop.name, latestVersion, true);
+            if (values.length > 0) generalOptions.set(prop.name, { type, values });
+        }
+        const generalOptionEntries = [...generalOptions].slice(0, maxEnum);
+        for (const [name, option] of generalOptionEntries) {
+            lines.push(`// ${name}: ${this.compactEnumList(option.values.map((value) => ({ value })), maxEnum)}`);
+        }
+        if (generalOptions.size > maxEnum) {
+            lines.push(`// ... (+${generalOptions.size - maxEnum} more option fields; see node-info --json)`);
+        }
+
         const firstResource = resources[0];
         // The snippet is emitted verbatim, so prefer a pair with no gate beyond `resource`:
         // a gated one needs a parameter the snippet does not carry and would not validate.
@@ -348,6 +368,13 @@ ${interfaceBody}
             firstResource ? `  resource: '${firstResource}',` : undefined,
             firstOperation ? `  operation: '${firstOperation}',` : undefined,
         ].filter(Boolean) as string[];
+        for (const [name, option] of generalOptionEntries) {
+            const firstValue = option.values[0];
+            const key = /^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name);
+            discriminators.push(option.type === 'multioptions'
+                ? `  ${key}: [${JSON.stringify(firstValue)}],`
+                : `  ${key}: ${JSON.stringify(firstValue)},`);
+        }
 
         lines.push(this.generateMinimalSnippet({
             name: schema.name,
@@ -384,17 +411,59 @@ ${interfaceBody}
      * set — compact told an agent `gmail` could only `create|delete|get|getAll`, hiding
      * `send`, and it picked a wrong operation on that basis.
      */
-    private static unionOptionValues(allProps: any[], name: string, version?: number): string[] {
-        const seen = new Set<string>();
+    private static unionOptionValues(allProps: any[], name: string, version?: number, ungatedOnly = false): unknown[] {
+        const seen = new Map<string, unknown>();
         for (const prop of allProps) {
             if (prop.name !== name || !Array.isArray(prop.options)) continue;
             if (version !== undefined && !this.matchesVersion(prop.displayOptions?.show?.['@version'], version)) continue;
+            if (ungatedOnly && version !== undefined && !this.isUngatedOption(prop, version)) continue;
             for (const option of prop.options) {
                 const value = option?.value ?? option?.name;
-                if (value !== undefined) seen.add(String(value));
+                if (value !== undefined && !seen.has(String(value))) seen.set(String(value), value);
             }
         }
-        return [...seen];
+        return [...seen.values()];
+    }
+
+    /** Return true only for a property with no parameter gate at this version. */
+    private static isUngatedOption(prop: any, version: number): boolean {
+        const displayOptions = prop?.displayOptions;
+        if (displayOptions !== undefined) {
+            if (!displayOptions || typeof displayOptions !== 'object' || Array.isArray(displayOptions)) return false;
+            for (const [kind, conditions] of [['show', displayOptions.show], ['hide', displayOptions.hide]] as const) {
+                if (conditions === undefined) continue;
+                if (!conditions || typeof conditions !== 'object' || Array.isArray(conditions)) return false;
+                const keys = Object.keys(conditions);
+                if (keys.some((key) => key !== '@version')) return false;
+                if (!Object.prototype.hasOwnProperty.call(conditions, '@version')) continue;
+                const applies = this.matchesVersion(conditions['@version'], version);
+                if ((kind === 'show' && !applies) || (kind === 'hide' && applies)) return false;
+            }
+        }
+
+        if (prop?.disabledOptions === undefined) return true;
+        const disabledOptions = prop.disabledOptions;
+        if (!disabledOptions || typeof disabledOptions !== 'object' || Array.isArray(disabledOptions)) return false;
+        if (Object.keys(disabledOptions).some((key) => key !== 'show' && key !== 'hide')) return false;
+
+        // Version-only disabled rules can be resolved here. Parameter-dependent or
+        // malformed rules stay excluded because compact cannot evaluate their values.
+        let hasHideRule = false;
+        for (const [kind, conditions] of [['show', disabledOptions.show], ['hide', disabledOptions.hide]] as const) {
+            if (conditions === undefined) continue;
+            if (!conditions || typeof conditions !== 'object' || Array.isArray(conditions)) return false;
+            const keys = Object.keys(conditions);
+            if (keys.length === 0) continue;
+            if (keys.some((key) => key !== '@version')) return false;
+            const applies = this.matchesVersion(conditions['@version'], version);
+            if (kind === 'show') {
+                if (!applies) return true;
+            } else {
+                hasHideRule = true;
+                if (!applies) return false;
+            }
+        }
+        return hasHideRule;
     }
 
     /**
@@ -445,8 +514,9 @@ ${interfaceBody}
      * of `{ _cnd: { gte: 1.1 } }` comparators. Absent condition means every version.
      */
     private static matchesVersion(condition: unknown, version: number): boolean {
-        if (!Array.isArray(condition)) return true;
-        return condition.some((entry: any) => {
+        if (condition === undefined) return true;
+        const entries = Array.isArray(condition) ? condition : [condition];
+        return entries.some((entry: any) => {
             const cnd = entry?._cnd;
             if (!cnd) return Number(entry) === version;
             return Object.entries(cnd).every(([operator, value]: [string, any]) => {
