@@ -6,7 +6,7 @@ description: Install the n8n-as-code OpenClaw plugin and use the same n8n enviro
 
 # OpenClaw Plugin
 
-The `@n8n-as-code/n8nac` package gives OpenClaw the same portable `n8n-manager` and `n8n-architect` skills used by Claude, Cursor, VS Code workspaces, and generic coding agents.
+The `@n8n-as-code/n8nac` package gives OpenClaw the same portable `n8n-architect` skill used by Claude, Cursor, VS Code workspaces, and generic coding agents.
 
 ## Install
 

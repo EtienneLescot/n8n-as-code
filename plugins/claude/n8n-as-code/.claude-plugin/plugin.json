@@ -1,12 +1,13 @@
 {
   "name": "n8n-as-code",
   "version": "2.4.1",
-  "description": "Claude Code plugin for n8n-as-code. Adds the n8n-manager and n8n-architect skills and uses the n8nac CLI as its local knowledge/runtime bridge.",
+  "description": "Claude Code plugin for n8n-as-code. Adds the n8n-architect skill, which drives the n8nac CLI for workflows and the n8n-manager CLI for local managed instances.",
   "author": {
     "name": "Etienne Lescot",
     "url": "https://github.com/EtienneLescot"
   },
-  "license": "Apache-2.0",
+  "license": "MIT",
+  "icon": "./assets/icon.svg",
   "homepage": "https://n8nascode.dev/docs/usage/claude-plugin/",
   "repository": "https://github.com/EtienneLescot/n8n-as-code",
   "mcpServers": {

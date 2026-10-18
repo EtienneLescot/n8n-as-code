@@ -27,7 +27,7 @@ export function registerN8nAcCli({ program, workspaceDir, telemetry }: CliOpts):
       console.log(`\nn8n-as-code workspace: ${workspaceDir}`);
       console.log(`Status: ${initialized ? "✓  Initialized" : "✗  Not initialized"}`);
       if (!initialized) {
-        console.log("\nUse the n8n-manager and n8n-architect skills to configure runtime access and workflow guidance.");
+        console.log("\nUse the n8n-architect skill to configure runtime access and workflow guidance.");
       }
       console.log();
     });

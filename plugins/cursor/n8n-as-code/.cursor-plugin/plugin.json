@@ -6,7 +6,7 @@
     "name": "Etienne Lescot",
     "email": "contact@n8nascode.dev"
   },
-  "license": "Apache-2.0",
+  "license": "MIT",
   "homepage": "https://n8nascode.dev",
   "repository": "https://github.com/EtienneLescot/n8n-as-code",
   "keywords": ["n8n", "workflow", "automation", "n8nac", "agentic"],

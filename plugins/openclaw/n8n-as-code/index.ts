@@ -76,7 +76,7 @@ export function buildPromptContext(workspaceDir: string): string {
     : [
         "",
         "Detailed workflow-authoring guidance is intentionally scoped to the `n8n-architect` skill, but the generated workspace AI context file (`AGENTS.md`) is missing.",
-        "If the user starts explicit n8n workflow work, use the n8n-manager and n8n-architect skills to configure access and regenerate `AGENTS.md` with `npx --yes n8nac update-ai` when needed.",
+        "If the user starts explicit n8n workflow work, use the n8n-architect skill to configure access and regenerate `AGENTS.md` with `npx --yes n8nac update-ai` when needed.",
       ];
 
   return [
@@ -131,7 +131,7 @@ const n8nAcPlugin = {
             api.logger.warn("[n8nac] Workspace ready, but AGENTS.md is missing or unreadable.");
           }
         } else {
-          api.logger.info("[n8nac] Workspace not initialized. Use the n8n-manager and n8n-architect skills to configure it.");
+          api.logger.info("[n8nac] Workspace not initialized. Use the n8n-architect skill to configure it.");
         }
       },
       stop: async () => {
