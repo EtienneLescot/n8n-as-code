@@ -318,14 +318,27 @@ function writeJson(relativePath, value) {
 }
 
 function syncClaudePluginVersion(changedVersions) {
+  const pluginManifestPath = 'plugins/claude/n8n-as-code/.claude-plugin/plugin.json';
+
+  // The Claude plugin directory refuses an npx launcher without an exact version.
+  const mcpVersion = changedVersions.get('@n8n-as-code/mcp');
+  if (mcpVersion) {
+    const manifest = readJson(pluginManifestPath);
+    const server = manifest.mcpServers?.['n8n-as-code'];
+    if (server?.args) {
+      server.args = server.args.map(arg => arg.startsWith('@n8n-as-code/mcp') ? `@n8n-as-code/mcp@${mcpVersion}` : arg);
+      writeJson(pluginManifestPath, manifest);
+    }
+  }
+
   const skillsVersion = changedVersions.get('@n8n-as-code/skills');
   if (!skillsVersion) {
     return;
   }
 
-  const pluginManifest = readJson('plugins/claude/n8n-as-code/.claude-plugin/plugin.json');
+  const pluginManifest = readJson(pluginManifestPath);
   pluginManifest.version = skillsVersion;
-  writeJson('plugins/claude/n8n-as-code/.claude-plugin/plugin.json', pluginManifest);
+  writeJson(pluginManifestPath, pluginManifest);
 
   const marketplace = readJson('.claude-plugin/marketplace.json');
   if (marketplace.metadata) {
