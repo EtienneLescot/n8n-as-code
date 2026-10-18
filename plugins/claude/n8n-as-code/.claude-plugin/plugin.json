@@ -14,7 +14,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@n8n-as-code/mcp"
+        "@n8n-as-code/mcp@2.2.1"
       ]
     }
   },
