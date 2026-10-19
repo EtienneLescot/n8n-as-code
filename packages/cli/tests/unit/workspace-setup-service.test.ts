@@ -95,4 +95,43 @@ describe('WorkspaceSetupService', () => {
 
         expect(diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))).toEqual([]);
     });
+
+    it('type-checks the workflow settings that push sends', () => {
+        const workflowDir = fs.mkdtempSync(path.join(os.tmpdir(), 'n8nac-workspace-'));
+        tempDirs.push(workflowDir);
+
+        WorkspaceSetupService.ensureWorkspaceFiles(workflowDir);
+        fs.writeFileSync(
+            path.join(workflowDir, 'settings.workflow.ts'),
+            [
+                "import { workflow } from '@n8n-as-code/transformer';",
+                '',
+                '@workflow({',
+                "    id: 'wf_1',",
+                "    name: 'Settings',",
+                '    active: false,',
+                '    settings: {',
+                "        executionOrder: 'v1',",
+                "        saveDataSuccessExecution: 'none',",
+                '        executionTimeout: 300,',
+                "        callerPolicy: 'workflowsFromAList',",
+                "        callerIds: 'wf_2,wf_3',",
+                '        timeSavedPerExecution: 5,',
+                '    },',
+                '})',
+                'export class SettingsWorkflow {}',
+                '',
+            ].join('\n'),
+            'utf-8'
+        );
+
+        const configFile = ts.readConfigFile(path.join(workflowDir, 'tsconfig.json'), ts.sys.readFile);
+        const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, workflowDir);
+        const program = ts.createProgram(parsed.fileNames, parsed.options);
+        const diagnostics = ts.getPreEmitDiagnostics(program).filter(
+            (diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error
+        );
+
+        expect(diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))).toEqual([]);
+    });
 });
