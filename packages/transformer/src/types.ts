@@ -50,9 +50,13 @@ export interface WorkflowSettings {
     timezone?: string;
     saveManualExecutions?: boolean;
     saveDataErrorExecution?: 'all' | 'none';
+    saveDataSuccessExecution?: 'all' | 'none';
     saveExecutionProgress?: boolean;
+    executionTimeout?: number;
     availableInMCP?: boolean;
     callerPolicy?: string;
+    callerIds?: string;
+    timeSavedPerExecution?: number;
 }
 
 /**
