@@ -160,6 +160,10 @@ describe('WorkflowTransformerAdapter settings round-trip', () => {
                 saveManualExecutions: true,
                 saveDataErrorExecution: 'all',
                 saveExecutionProgress: false,
+                saveDataSuccessExecution: 'none',
+                executionTimeout: 300,
+                callerIds: 'wf-a,wf-b',
+                timeSavedPerExecution: 5,
             },
         } as any;
 
@@ -195,6 +199,34 @@ describe('WorkflowTransformerAdapter settings round-trip', () => {
         expect(hashWithMCP).not.toBe(hashBase);
         expect(hashWithCaller).not.toBe(hashBase);
         expect(hashWithMCP).not.toBe(hashWithCaller);
+    });
+
+    it('pushes and hashes saveDataSuccessExecution, executionTimeout, callerIds and timeSavedPerExecution', async () => {
+        const added = {
+            saveDataSuccessExecution: 'none',
+            executionTimeout: 300,
+            callerIds: 'wf-a,wf-b',
+            timeSavedPerExecution: 5,
+        };
+        const ts = await WorkflowTransformerAdapter.convertToTypeScript(
+            {
+                ...baseWorkflow,
+                settings: { executionOrder: 'v1', callerPolicy: 'workflowsFromAList', ...added },
+            } as any,
+            { format: false, commentStyle: 'minimal' },
+        );
+
+        const result = await WorkflowTransformerAdapter.compileToJson(ts);
+
+        expect(result.settings).toMatchObject({ callerPolicy: 'workflowsFromAList', ...added });
+
+        const mkWorkflow = (settings: Record<string, unknown>) =>
+            JSON.stringify({ ...baseWorkflow, settings: { executionOrder: 'v1', ...settings } });
+        const hashBase = await WorkflowTransformerAdapter.hashWorkflow(mkWorkflow({}));
+        for (const [key, value] of Object.entries(added)) {
+            const hash = await WorkflowTransformerAdapter.hashWorkflow(mkWorkflow({ [key]: value }));
+            expect(hash, key).not.toBe(hashBase);
+        }
     });
 });
 

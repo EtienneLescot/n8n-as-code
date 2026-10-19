@@ -181,7 +181,11 @@ export class WorkflowTransformerAdapter {
             'saveExecutionProgress',
             'executionOrder',
             'availableInMCP',
-            'callerPolicy'
+            'callerPolicy',
+            'saveDataSuccessExecution',
+            'executionTimeout',
+            'callerIds',
+            'timeSavedPerExecution'
         ];
         const filteredSettings: any = {};
         const rawSettings: any = (workflow as any).settings || {};
@@ -264,7 +268,11 @@ export class WorkflowTransformerAdapter {
             'saveExecutionProgress',
             'executionOrder',
             'availableInMCP',
-            'callerPolicy'
+            'callerPolicy',
+            'saveDataSuccessExecution',
+            'executionTimeout',
+            'callerIds',
+            'timeSavedPerExecution'
         ];
         const filteredSettings: any = {};
 

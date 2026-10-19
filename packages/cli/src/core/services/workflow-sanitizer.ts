@@ -138,7 +138,11 @@ export class WorkflowSanitizer {
             'saveExecutionProgress',
             'executionOrder',
             'availableInMCP',
-            'callerPolicy'
+            'callerPolicy',
+            'saveDataSuccessExecution',
+            'executionTimeout',
+            'callerIds',
+            'timeSavedPerExecution'
         ];
         const filteredSettings: any = {};
         

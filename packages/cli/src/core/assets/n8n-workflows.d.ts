@@ -60,8 +60,12 @@ declare module '@n8n-as-code/transformer' {
         timezone?: string;
         saveManualExecutions?: boolean;
         saveDataErrorExecution?: 'all' | 'none';
+        saveDataSuccessExecution?: 'all' | 'none';
         saveExecutionProgress?: boolean;
-        callerPolicy?: 'workflowsFromSameOwner' | 'any' | 'none';
+        executionTimeout?: number;
+        callerPolicy?: 'workflowsFromSameOwner' | 'workflowsFromAList' | 'any' | 'none';
+        callerIds?: string;
+        timeSavedPerExecution?: number;
         availableInMCP?: boolean;
         [key: string]: any;
     }
