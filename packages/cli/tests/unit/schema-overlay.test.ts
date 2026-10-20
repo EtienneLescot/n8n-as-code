@@ -62,6 +62,48 @@ describe('node-schema-defs-parser', () => {
         expect(text!.required).toBe(true);
         expect(text!.displayOptions?.show?.promptType).toEqual(['define']);
     });
+
+    it('supports one interface and one object type alias with literal unions', () => {
+        const parsed = parseNodeTypeDefinitions([
+            '## n8n-nodes-base.singleNode (v10)',
+            '',
+            '```typescript',
+            'export interface SingleNodeV10Params {',
+            "    mode?: 'one' | 'two';",
+            '}',
+            '```',
+            '',
+            '## n8n-nodes-base.aliasNode (v10)',
+            '',
+            '```typescript',
+            'export type AliasNodeV10Params = {',
+            "    mode?: 'one' | 'two';",
+            '};',
+            '```',
+        ].join('\n'));
+
+        expect(parsed).toHaveLength(2);
+        expect(parsed[0].properties[0].options?.map((option) => option.value)).toEqual(['one', 'two']);
+        expect(parsed[1].properties[0].options?.map((option) => option.value)).toEqual(['one', 'two']);
+    });
+
+    it('skips definitions with multiple Params variants', () => {
+        const parsed = parseNodeTypeDefinitions([
+            '## n8n-nodes-base.switch (v22)',
+            '',
+            '```typescript',
+            'export type SwitchV22Params = SwitchV22ExpressionParams | SwitchV22RulesParams;',
+            'export interface SwitchV22ExpressionParams {',
+            "    mode?: 'expression';",
+            '}',
+            'export interface SwitchV22RulesParams {',
+            "    mode?: 'rules';",
+            '}',
+            '```',
+        ].join('\n'));
+
+        expect(parsed).toEqual([]);
+    });
 });
 
 describe('SchemaOverlayManager', () => {
@@ -112,6 +154,7 @@ describe('SchemaOverlayManager', () => {
         await manager.ensureForTypes(types);
         expect(calls).toBe(1);
         expect(manager.isFresh(types)).toBe(true);
+        expect(JSON.parse(fs.readFileSync(path.join(cacheDir, '.schema-overlay.json'), 'utf8')).schemaVersion).toBe(2);
     });
 
     it('keeps discriminator variants of one type separate (resource/operation identity)', async () => {
@@ -161,5 +204,362 @@ describe('SchemaOverlayManager', () => {
         // Both variants stay distinguishable: no cross-contamination of conditions.
         expect(getAllProp.displayOptions.show.operation).toEqual(['get_all']);
         expect(sendProp.displayOptions.show.operation).toEqual(['send']);
+    });
+
+    it('falls back for the whole type when one discriminator variant is unsupported', async () => {
+        const definitions = [
+            '# TypeScript Type Definitions',
+            '',
+            '## n8n-nodes-base.code (v20)',
+            '',
+            '```typescript',
+            'export interface CodeV20Params {',
+            "    marker?: 'unrelated';",
+            '}',
+            '```',
+            '',
+            '## n8n-nodes-base.gmailTool (v22)',
+            '',
+            '```typescript',
+            '* Discriminator: resource=message, operation=get_all',
+            'export interface GmailV22Params {',
+            "    marker?: 'getAll';",
+            '}',
+            '```',
+            '',
+            '## n8n-nodes-base.gmailTool (v22)',
+            '',
+            '```typescript',
+            '* Discriminator: resource=message, operation=send',
+            'export type GmailV22Params = GmailV22SendExpressionParams | GmailV22SendRulesParams;',
+            'export interface GmailV22SendExpressionParams {',
+            "    marker?: 'sendExpression';",
+            '}',
+            'export interface GmailV22SendRulesParams {',
+            "    marker?: 'sendRules';",
+            '}',
+            '```',
+        ].join('\n');
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        let calls = 0;
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => {
+                    calls += 1;
+                    return { structuredContent: { definitions } };
+                },
+            } as any,
+        });
+        const getAll = { type: 'n8n-nodes-base.gmailTool', version: '2.2', resource: 'message', operation: 'get_all' };
+        const send = { type: 'n8n-nodes-base.gmailTool', version: '2.2', resource: 'message', operation: 'send' };
+        const code = { type: 'n8n-nodes-base.code', version: '2.0' };
+
+        try {
+            const first = await manager.ensureForTypes([getAll, send, code]);
+            expect(first.failed).toEqual(['n8n-nodes-base.gmailTool@2.2/message:send']);
+            const cache = JSON.parse(fs.readFileSync(path.join(cacheDir, '.schema-overlay.json'), 'utf8'));
+            expect(cache.nodes['n8n-nodes-base.gmailTool'].versions['2.2|message|get_all']).toBeDefined();
+            let provider = JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8'));
+            expect(provider.nodes['n8n-nodes-base.gmailTool']).toBeUndefined();
+            expect(provider.nodes['n8n-nodes-base.code']).toBeDefined();
+
+            const supportedOnly = await manager.ensureForTypes([getAll]);
+            expect(supportedOnly.failed).toEqual([]);
+            expect(calls).toBe(2);
+            provider = JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8'));
+            expect(provider.nodes['n8n-nodes-base.gmailTool']).toBeDefined();
+            expect(provider.nodes['n8n-nodes-base.code']).toBeDefined();
+
+            const second = await manager.ensureForTypes([getAll, send, code]);
+            expect(second.failed).toEqual(first.failed);
+            expect(calls).toBe(4);
+            provider = JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8'));
+            expect(provider.nodes['n8n-nodes-base.gmailTool']).toBeUndefined();
+            expect(provider.nodes['n8n-nodes-base.code']).toBeDefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
+    });
+
+    it('does not use an incompatible version as a same-type fallback', async () => {
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => ({
+                    structuredContent: {
+                        definitions: [
+                            '## n8n-nodes-base.switch (v22)',
+                            '',
+                            '```typescript',
+                            'export interface SwitchV22Params {',
+                            "    marker?: 'oldVersion';",
+                            '}',
+                            '```',
+                        ].join('\n'),
+                    },
+                }),
+            } as any,
+        });
+
+        try {
+            const result = await manager.ensureForTypes([{ type: 'n8n-nodes-base.switch', version: '3.2' }]);
+            expect(result.failed).toEqual(['n8n-nodes-base.switch@3.2']);
+            expect(JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8')).nodes['n8n-nodes-base.switch']).toBeUndefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
+    });
+
+    it('accepts a generic section for a compatible discriminator request', async () => {
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => ({
+                    structuredContent: {
+                        definitions: [
+                            '## n8n-nodes-base.gmailTool (v22)',
+                            '',
+                            '```typescript',
+                            'export interface GmailV22Params {',
+                            "    marker?: 'generic';",
+                            '}',
+                            '```',
+                        ].join('\n'),
+                    },
+                }),
+            } as any,
+        });
+
+        try {
+            const result = await manager.ensureForTypes([
+                { type: 'n8n-nodes-base.gmailTool', version: '2.2', resource: 'message', operation: 'get_all' },
+            ]);
+            expect(result.failed).toEqual([]);
+            expect(JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8')).nodes['n8n-nodes-base.gmailTool']).toBeDefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
+    });
+
+    it('does not let a specific operation section cover a templated operation', async () => {
+        const definitions = [
+            '## n8n-nodes-base.gmailTool (v22)',
+            '',
+            '```typescript',
+            '* Discriminator: resource=message, operation=get_all',
+            'export interface GmailV22Params {',
+            "    marker?: 'getAll';",
+            '}',
+            '```',
+        ].join('\n');
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => ({ structuredContent: { definitions } }),
+            } as any,
+        });
+        const descriptors = SchemaOverlayManager.collectNodeTypes({
+            nodes: [
+                { type: 'n8n-nodes-base.gmailTool', typeVersion: 2.2, parameters: { resource: 'message', operation: 'getAll' } },
+                { type: 'n8n-nodes-base.gmailTool', typeVersion: 2.2, parameters: { resource: 'message', operation: '={{ $json.operation }}' } },
+            ],
+        });
+
+        try {
+            const result = await manager.ensureForTypes(descriptors);
+            expect(result.failed).toEqual(['n8n-nodes-base.gmailTool@2.2/message']);
+            const cache = JSON.parse(fs.readFileSync(path.join(cacheDir, '.schema-overlay.json'), 'utf8'));
+            expect(cache.nodes['n8n-nodes-base.gmailTool'].versions['2.2|message|get_all']).toBeDefined();
+            expect(cache.nodes['n8n-nodes-base.gmailTool'].versions['2.2|message|']).toBeUndefined();
+            expect(JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8')).nodes['n8n-nodes-base.gmailTool']).toBeUndefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
+    });
+
+    it('does not let a specific resource section cover a templated resource', async () => {
+        const definitions = [
+            '## n8n-nodes-base.gmailTool (v22)',
+            '',
+            '```typescript',
+            '* Discriminator: resource=message, operation=get_all',
+            'export interface GmailV22Params {',
+            "    marker?: 'getAll';",
+            '}',
+            '```',
+        ].join('\n');
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => ({ structuredContent: { definitions } }),
+            } as any,
+        });
+        const descriptors = SchemaOverlayManager.collectNodeTypes({
+            nodes: [
+                { type: 'n8n-nodes-base.gmailTool', typeVersion: 2.2, parameters: { resource: 'message', operation: 'getAll' } },
+                { type: 'n8n-nodes-base.gmailTool', typeVersion: 2.2, parameters: { resource: '={{ $json.resource }}', operation: 'getAll' } },
+            ],
+        });
+
+        try {
+            const result = await manager.ensureForTypes(descriptors);
+            expect(result.failed).toEqual(['n8n-nodes-base.gmailTool@2.2:get_all']);
+            const cache = JSON.parse(fs.readFileSync(path.join(cacheDir, '.schema-overlay.json'), 'utf8'));
+            expect(cache.nodes['n8n-nodes-base.gmailTool'].versions['2.2|message|get_all']).toBeDefined();
+            expect(cache.nodes['n8n-nodes-base.gmailTool'].versions['2.2||get_all']).toBeUndefined();
+            expect(JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8')).nodes['n8n-nodes-base.gmailTool']).toBeUndefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
+    });
+
+    it('keeps supported definitions when a response also contains an unsupported union', async () => {
+        const definitions = [
+            '## n8n-nodes-base.code (v20)',
+            '',
+            '```typescript',
+            'export interface CodeV20Params {',
+            "    runOnceForAllItems?: 'true';",
+            '}',
+            '```',
+            '',
+            '## n8n-nodes-base.switch (v22)',
+            '',
+            '```typescript',
+            'export type SwitchV22Params = SwitchV22ExpressionParams | SwitchV22RulesParams;',
+            'export interface SwitchV22ExpressionParams {',
+            "    mode?: 'expression';",
+            '}',
+            'export interface SwitchV22RulesParams {',
+            "    mode?: 'rules';",
+            '}',
+            '```',
+        ].join('\n');
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => ({ structuredContent: { definitions } }),
+            } as any,
+        });
+        const code = { type: 'n8n-nodes-base.code', version: '2.0' };
+        const switchNode = { type: 'n8n-nodes-base.switch', version: '2.2' };
+
+        try {
+            const result = await manager.ensureForTypes([code, switchNode]);
+
+            expect(result.failed).toEqual(['n8n-nodes-base.switch@2.2']);
+            const provider = JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8'));
+            expect(provider.nodes['n8n-nodes-base.code']).toBeDefined();
+            expect(provider.nodes['n8n-nodes-base.switch']).toBeUndefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
+    });
+
+    it('refreshes a schemaVersion 1 cache before validation', async () => {
+        const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-'));
+        const type = { type: 'n8n-nodes-base.switch', version: '3.2' };
+        fs.writeFileSync(
+            path.join(cacheDir, '.schema-overlay.json'),
+            JSON.stringify({
+                schemaVersion: 1,
+                ttlMs: 7 * 24 * 60 * 60 * 1000,
+                nodes: {
+                    'n8n-nodes-base.switch': {
+                        type: 'n8n-nodes-base.switch',
+                        name: 'switch',
+                        version: [3.2],
+                        versions: {
+                            '3.2||': {
+                                fetchedAtMs: Date.now(),
+                                properties: [{ name: 'poisoned', type: 'string', required: false }],
+                                version: 3.2,
+                            },
+                        },
+                    },
+                },
+            }),
+        );
+        fs.writeFileSync(
+            `${path.join(cacheDir, '.schema-overlay.json')}.provider.json`,
+            JSON.stringify({
+                nodes: {
+                    'n8n-nodes-base.switch': {
+                        type: 'n8n-nodes-base.switch',
+                        name: 'switch',
+                        version: [3.2],
+                        schema: { properties: [{ name: 'poisoned', type: 'string', required: false }] },
+                    },
+                },
+            }),
+        );
+        let calls = 0;
+        const manager = new SchemaOverlayManager({
+            endpoint: 'https://unused.local',
+            token: 'x',
+            cacheDir,
+            client: {
+                listTools: async () => [],
+                callTool: async () => {
+                    calls += 1;
+                    return {
+                        structuredContent: {
+                            definitions: [
+                                '## n8n-nodes-base.switch (v32)',
+                                '',
+                                '```typescript',
+                                'export type SwitchV32Params = SwitchV32ExpressionParams | SwitchV32RulesParams;',
+                                'export interface SwitchV32ExpressionParams {',
+                                "    mode?: 'expression';",
+                                '}',
+                                'export interface SwitchV32RulesParams {',
+                                "    mode?: 'rules';",
+                                '}',
+                                '```',
+                            ].join('\n'),
+                        },
+                    };
+                },
+            } as any,
+        });
+
+        try {
+            expect(manager.isFresh([type])).toBe(false);
+            const result = await manager.ensureForTypes([type]);
+
+            expect(calls).toBe(2);
+            expect(result.failed).toEqual(['n8n-nodes-base.switch@3.2']);
+            const cache = JSON.parse(fs.readFileSync(path.join(cacheDir, '.schema-overlay.json'), 'utf8'));
+            expect(cache.schemaVersion).toBe(2);
+            expect(cache.nodes['n8n-nodes-base.switch']).toBeUndefined();
+            const provider = JSON.parse(fs.readFileSync(manager.providerFilePath, 'utf8'));
+            expect(provider.nodes['n8n-nodes-base.switch']).toBeUndefined();
+        } finally {
+            fs.rmSync(cacheDir, { recursive: true, force: true });
+        }
     });
 });

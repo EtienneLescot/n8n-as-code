@@ -32,7 +32,7 @@ export interface OverlayNodeVersion {
 }
 
 interface OverlayFile {
-    schemaVersion: 1;
+    schemaVersion: 2;
     ttlMs: number;
     nodes: Record<string, { type: string; name: string; version: number[]; versions: Record<string, OverlayNodeVersion> }>;
 }
@@ -87,7 +87,7 @@ export class SchemaOverlayManager {
     private readCache(): OverlayFile {
         try {
             const raw = JSON.parse(fs.readFileSync(this.overlayPath, 'utf8')) as OverlayFile;
-            if (raw.schemaVersion === 1 && raw.nodes && typeof raw.nodes === 'object') {
+            if (raw.schemaVersion === 2 && raw.nodes && typeof raw.nodes === 'object') {
                 // Drop legacy version records keyed by bare version (no
                 // discriminator axes); they are re-fetched on demand.
                 for (const entry of Object.values(raw.nodes)) {
@@ -100,7 +100,7 @@ export class SchemaOverlayManager {
         } catch {
             // missing or corrupt cache — start fresh
         }
-        return { schemaVersion: 1, ttlMs: this.ttlMs, nodes: {} };
+        return { schemaVersion: 2, ttlMs: this.ttlMs, nodes: {} };
     }
 
     private writeCache(cache: OverlayFile): void {
@@ -148,7 +148,7 @@ export class SchemaOverlayManager {
      * Ensure the overlay covers the given descriptors, fetching only what is
      * missing or expired. Returns the overlay file path plus the list of
      * requested descriptors the instance could not provide definitions for
-     * (they then fall back to the bundled schema — partial coverage is kept).
+     * (the affected node types then fall back to the bundled schema).
      */
     async ensureForTypes(types: Array<SchemaDescriptor>): Promise<{ overlayPath: string; failed: string[] }> {
         const cache = this.readCache();
@@ -184,6 +184,11 @@ export class SchemaOverlayManager {
                 }
             }
         }
+
+        const failedTypes = new Set(
+            types.filter((descriptor) => failed.includes(descriptorLabel(descriptor))).map((descriptor) => descriptor.type),
+        );
+        this.materialiseProviderFile(this.readCache(), failedTypes);
 
         return { overlayPath: this.overlayPath, failed };
     }
@@ -235,7 +240,8 @@ export class SchemaOverlayManager {
                 const want = descriptor[axis];
                 const got = s[axis];
                 if (want === undefined) {
-                    score += got === undefined ? 2 : 1;
+                    if (got !== undefined) return -1;
+                    score += 2;
                 } else if (got === undefined) {
                     score += 1;
                 } else if (got === want) {
@@ -256,9 +262,6 @@ export class SchemaOverlayManager {
                 bestScore = score;
             }
         }
-        // Preserve the historical leniency: a lone same-type section is used
-        // even when nothing scores (e.g. version drift in either direction).
-        if (!best && byType.length === 1) return byType[0];
         return bestScore >= 0 ? best : undefined;
     }
 
@@ -304,9 +307,10 @@ export class SchemaOverlayManager {
      *   scoping (same convention as the bundled index: the validator picks the
      *   variant whose conditions the node's own parameters satisfy).
      */
-    private materialiseProviderFile(cache: OverlayFile): void {
+    private materialiseProviderFile(cache: OverlayFile, excludedTypes = new Set<string>()): void {
         const nodes: Record<string, any> = {};
         for (const [typeKey, entry] of Object.entries(cache.nodes)) {
+            if (excludedTypes.has(typeKey)) continue;
             const records = Object.values(entry.versions);
             const versionList = [...new Set(records.map((r) => r.version))].sort((a, b) => a - b);
             const resources = new Set(records.map((r) => r.resource ?? '').filter(Boolean));
