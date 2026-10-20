@@ -52,6 +52,18 @@ The native MCP form also includes **Advanced security options**. Leave them disa
 
 The extension stores only non-secret settings in `n8nac-config.json`. The native MCP token is stored locally with the environment credentials. The Agent Workbench does not require manual `.vscode/mcp.json` configuration for this feature.
 
+## Web Search in the Agent Workbench
+
+In trusted workspaces, the Workbench includes [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) for current public documentation and external facts. Search uses Fast mode and needs no account or API key. Ask the Agent to look up an API's current documentation, fetch a relevant page, and cite its sources. This gives the Workbench web tools; it does not add search nodes to deployed n8n workflows.
+
+Web search is enabled by default. To prevent the Workbench from connecting to Parallel, add this to your VS Code user or workspace `settings.json`:
+
+```json
+{ "n8n.agent.webSearch.enabled": false }
+```
+
+Changes apply on the next turn. Untrusted workspaces do not connect. Queries and requested page URLs are sent to Parallel; do not include secrets or private workflow/execution data. Native n8n MCP settings, credentials, and model-provider choices are separate and remain available. Anonymous usage has service rate limits; a failed search is reported to the Agent rather than retried through another provider. The model provider still needs its usual configuration.
+
 ## Daily Workflow
 
 1. Refresh the `n8n` sidebar.
