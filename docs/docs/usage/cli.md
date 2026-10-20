@@ -162,6 +162,9 @@ The workspace does not copy Docker paths, tunnel state, logs, or local secrets.
 ## `workspace`
 
 Use `workspace` for inspection. Use `env status` for effective runtime readiness.
+Workspace inspection reads local configuration only. Its JSON output omits
+`accessStatus` because it does not perform a connectivity check. Use `env status`
+when you need to verify that an environment can be reached.
 
 ```bash
 n8nac workspace status --json
