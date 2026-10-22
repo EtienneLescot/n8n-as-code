@@ -36,7 +36,7 @@
         "chokidar": "^3.5.3",
         "cli-table3": "^0.6.3",
         "commander": "^11.1.0",
-        "conf": "^15.0.2",
+        "conf": "^16.0.0",
         "deep-equal": "^2.2.3",
         "diff": "^5.1.0",
         "dotenv": "^16.3.1",
