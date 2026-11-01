@@ -782,28 +782,40 @@ environmentAuthProgram.command('folder-logout')
         );
     });
 
-environmentProgram.command('status')
-    .description('Show resolved workspace environment context')
-    .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
-    .option('--json', 'Output resolved environment as JSON')
-    .action((nameOrId, options) => {
-        const configService = new ConfigService();
-        const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
-        printJsonOrText(
-            options,
-            redactResolvedEnvironment(environment),
-            [
-                chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
-                `Target  : ${chalk.bold(`${environment.environmentTargetName} (${environment.sourceKind})`)}`,
-                `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
-                `Host    : ${chalk.bold(environment.host)}`,
-                `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
-                `Workflows path: ${chalk.bold(environment.workflowsPath || '(unresolved)')}`,
-                `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
-                '',
-            ].join('\n'),
-        );
-    });
+    environmentProgram.command('status')
+        .description('Show resolved workspace environment context')
+        .argument('[name-or-id]', 'Environment name or ID; defaults to pinned environment or --env')
+        .option('--json', 'Output resolved environment as JSON')
+        .action((nameOrId, options) => {
+            const configService = new ConfigService();
+            try {
+                const environment = configService.resolveEnvironment(nameOrId || process.env.N8NAC_ENVIRONMENT?.trim() || undefined);
+                printJsonOrText(
+                    options,
+                    redactResolvedEnvironment(environment),
+                    [
+                        chalk.cyan(`\nWorkspace environment: ${environment.environmentName}\n`),
+                        `Target  : ${chalk.bold(`${environment.environmentTargetName} (${environment.sourceKind})`)}`,
+                        `Instance: ${chalk.bold(environment.activeInstanceName || environment.managedInstanceId || '(externalInstance)')}`,
+                        `Host    : ${chalk.bold(environment.host)}`,
+                        `Project : ${chalk.bold(environment.projectName || environment.projectId || '(none)')}`,
+                        `Workflows path: ${chalk.bold(environment.workflowsPath || '(unresolved)')}`,
+                        `API key : ${chalk.bold(environment.apiKeyAvailable ? environment.apiKeySource : 'missing')}`,
+                        '',
+                    ].join('\n'),
+                );
+            } catch (error: any) {
+                if (options.json) {
+                    console.log(JSON.stringify({
+                        configured: false,
+                        error: error.message,
+                        environments: configService.listEnvironments(),
+                    }, null, 2));
+                    process.exit(1);
+                }
+                throw error;
+            }
+        });
 
 hideCommand(program.command('setup'))
     .description('Choose how this facade should use n8n runtime capabilities')

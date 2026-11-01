@@ -5,7 +5,8 @@
     "main": "./dist/lib.js",
     "types": "./dist/lib.d.ts",
     "bin": {
-        "n8nac": "./dist/index.js"
+        "n8nac": "./dist/index.js",
+        "n8n-as-code": "./dist/index.js"
     },
     "type": "module",
     "license": "MIT",

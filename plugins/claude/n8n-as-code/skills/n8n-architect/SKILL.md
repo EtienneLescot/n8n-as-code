@@ -199,8 +199,10 @@ npx --yes n8nac skills node-info <nodeName>
 npx --yes n8nac skills validate <workflow.workflow.ts>
 ```
 
+- Batch node queries: query multiple nodes in a single command using `npx --yes n8nac skills node-info <node1> <node2> ... --compact` to inspect essential properties, required parameters, and valid options in one fast, token-efficient turn.
 - Use exact node `type` and valid `typeVersion` values from `node-info`.
 - Use exact resource, operation, option, and parameter names from schema output.
+- Parameters of type `resourceLocator` must be structured as `{ __rl: true, value: '...', mode: 'list' | 'id' | 'url' }`.
 - Do not invent parameters, operations, credential types, or CLI flags.
 - Treat schema output as the absolute source of truth even if examples or memory disagree.
 - Prefer the highest valid `typeVersion` returned by schema output.
@@ -255,6 +257,7 @@ npx --yes n8nac skills examples info <id>
 npx --yes n8nac skills examples download <id>
 ```
 
+- Query multiple nodes in a single command using `npx --yes n8nac skills node-info <node1> [node2...] [--compact]`.
 - Start with `examples search` when the user asks for a common automation pattern.
 - Use examples to learn patterns, not as authority over current node schemas.
 - If a command or flag is unfamiliar, run `npx --yes n8nac <subcommand> --help`; do not invent flags.

@@ -313,38 +313,73 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     program
         .command('node-info')
         .description('Get complete node information as TypeScript code')
-        .argument('<name>', 'Node name (exact, e.g. "googleSheets")')
+        .argument('<names...>', 'One or more node names (exact or fuzzy, e.g. "googleSheets" "gmail")')
+        .option('--compact', 'Output compact token-efficient TypeScript snippet without full interface dump')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
-        .action(async (name, options) => {
+        .action(async (namesArg: string | string[], options) => {
+            const names = Array.isArray(namesArg) ? namesArg : [namesArg];
             try {
                 await withCustomNodesWarnings();
                 await printCustomNodesDebugIfRequested(options.debug);
 
                 const provider = await getProvider();
-                const schema = provider.getNodeSchema(name);
-                if (schema) {
-                    if (options.json) {
-                        console.log(JSON.stringify(schema, null, 2));
-                    } else {
-                        const tsDoc = TypeScriptFormatter.generateCompleteNodeDoc({
-                            name: schema.name,
-                            type: schema.type,
-                            displayName: schema.displayName,
-                            description: schema.description,
-                            version: schema.version,
-                            properties: schema.schema?.properties || [],
-                            metadata: schema.metadata,
-                            parameterGating: schema.parameterGating
-                        });
-                        console.log(tsDoc);
+                const jsonResults: any[] = [];
+                const tsOutputs: string[] = [];
+                let notFoundCount = 0;
+
+                for (const name of names) {
+                    let schema = provider.getNodeSchema(name);
+                    if (!schema) {
+                        const searchResults = provider.searchNodes(name, 1);
+                        if (searchResults.length > 0 && ((searchResults[0].relevanceScore || 0) > 80 || searchResults[0].name.toLowerCase() === name.toLowerCase())) {
+                            schema = provider.getNodeSchema(searchResults[0].name);
+                        }
                     }
-                    console.error(chalk.cyan('\n💡 Next steps:'));
-                    console.error(chalk.gray(`   - 'node-schema ${name}' for quick TypeScript snippet`));
-                    console.error(chalk.gray(`   - 'guides ${name}' to find usage guides`));
-                    console.error(chalk.gray(`   - 'related ${name}' to discover similar nodes`));
-                } else {
-                    console.error(chalk.red(`Node '${name}' not found.`));
+
+                    if (schema) {
+                        if (options.json) {
+                            jsonResults.push(schema);
+                        } else if (options.compact) {
+                            tsOutputs.push(TypeScriptFormatter.generateCompactNodeSnippet({
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                properties: schema.schema?.properties || [],
+                            }));
+                        } else {
+                            tsOutputs.push(TypeScriptFormatter.generateCompleteNodeDoc({
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                properties: schema.schema?.properties || [],
+                                metadata: schema.metadata,
+                                parameterGating: schema.parameterGating
+                            }));
+                        }
+                    } else {
+                        console.error(chalk.red(`Node '${name}' not found.`));
+                        notFoundCount++;
+                    }
+                }
+
+                if (options.json) {
+                    console.log(JSON.stringify(names.length === 1 ? jsonResults[0] : jsonResults, null, 2));
+                } else if (tsOutputs.length > 0) {
+                    console.log(tsOutputs.join('\n\n'));
+                    if (!options.compact && names.length === 1) {
+                        console.error(chalk.cyan('\n💡 Next steps:'));
+                        console.error(chalk.gray(`   - 'node-schema ${names[0]}' for quick TypeScript snippet`));
+                        console.error(chalk.gray(`   - 'guides ${names[0]}' to find usage guides`));
+                        console.error(chalk.gray(`   - 'related ${names[0]}' to discover similar nodes`));
+                    }
+                }
+
+                if (notFoundCount === names.length && names.length > 0) {
                     process.exit(1);
                 }
             } catch (error: any) {
@@ -357,50 +392,78 @@ export function registerSkillsCommands(program: Command, assetsDir: string): voi
     program
         .command('node-schema')
         .description('Get TypeScript code snippet for a node (quick reference)')
-        .argument('<name>', 'Node name')
+        .argument('<names...>', 'One or more node names')
+        .option('--compact', 'Output compact token-efficient snippet without workflow boilerplate')
         .option('--debug', 'Show custom nodes resolution details on stderr')
         .option('--json', 'Output as JSON instead of TypeScript')
-        .action(async (name, options) => {
+        .action(async (namesArg: string | string[], options) => {
+            const names = Array.isArray(namesArg) ? namesArg : [namesArg];
             try {
                 await withCustomNodesWarnings();
                 await printCustomNodesDebugIfRequested(options.debug);
 
                 const provider = await getProvider();
-                let schema = provider.getNodeSchema(name);
+                const jsonResults: any[] = [];
+                const tsOutputs: string[] = [];
+                let notFoundCount = 0;
 
-                if (!schema) {
-                    const searchResults = provider.searchNodes(name, 1);
-                    if (searchResults.length > 0 && ((searchResults[0].relevanceScore || 0) > 80 || searchResults[0].name.toLowerCase() === name.toLowerCase())) {
-                        schema = provider.getNodeSchema(searchResults[0].name);
+                for (const name of names) {
+                    let schema = provider.getNodeSchema(name);
+
+                    if (!schema) {
+                        const searchResults = provider.searchNodes(name, 1);
+                        if (searchResults.length > 0 && ((searchResults[0].relevanceScore || 0) > 80 || searchResults[0].name.toLowerCase() === name.toLowerCase())) {
+                            schema = provider.getNodeSchema(searchResults[0].name);
+                        }
+                    }
+
+                    if (schema) {
+                        if (options.json) {
+                            const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
+                            jsonResults.push({
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                properties: props,
+                                requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
+                            });
+                        } else if (options.compact) {
+                            tsOutputs.push(TypeScriptFormatter.generateCompactNodeSnippet({
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                properties: schema.schema?.properties || []
+                            }));
+                        } else {
+                            tsOutputs.push(TypeScriptFormatter.generateNodeSnippet({
+                                name: schema.name,
+                                type: schema.type,
+                                displayName: schema.displayName,
+                                description: schema.description,
+                                version: schema.version,
+                                properties: schema.schema?.properties || []
+                            }));
+                        }
+                    } else {
+                        console.error(chalk.red(`Node '${name}' not found.`));
+                        notFoundCount++;
                     }
                 }
 
-                if (schema) {
-                    if (options.json) {
-                        const props = Array.isArray(schema.schema?.properties) ? schema.schema.properties : [];
-                        console.log(JSON.stringify({
-                            name: schema.name,
-                            type: schema.type,
-                            displayName: schema.displayName,
-                            description: schema.description,
-                            version: schema.version,
-                            properties: props,
-                            requiredFields: [...new Set(props.filter((p: any) => p.required).map((p: any) => p.name))]
-                        }, null, 2));
-                    } else {
-                        const tsSnippet = TypeScriptFormatter.generateNodeSnippet({
-                            name: schema.name,
-                            type: schema.type,
-                            displayName: schema.displayName,
-                            description: schema.description,
-                            version: schema.version,
-                            properties: schema.schema?.properties || []
-                        });
-                        console.log(tsSnippet);
+                if (options.json) {
+                    console.log(JSON.stringify(names.length === 1 ? jsonResults[0] : jsonResults, null, 2));
+                } else if (tsOutputs.length > 0) {
+                    console.log(tsOutputs.join('\n\n'));
+                    if (!options.compact && names.length === 1) {
+                        console.error(chalk.cyan(`\n💡 Hint: Use 'node-info ${names[0]}' for complete documentation and examples`));
                     }
-                    console.error(chalk.cyan(`\n💡 Hint: Use 'node-info ${schema.name}' for complete documentation and examples`));
-                } else {
-                    console.error(chalk.red(`Node '${name}' not found.`));
+                }
+
+                if (notFoundCount === names.length && names.length > 0) {
                     process.exit(1);
                 }
             } catch (error: any) {

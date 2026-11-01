@@ -376,4 +376,25 @@ describe('ConfigService V4 workspace environments', () => {
         expect(context.host).toBe('https://prod.example.test');
         expect(context.workflowsPath).toBe(path.join(workspaceRoot, 'workflows/prod'));
     });
+
+    it('auto-configures default workspace environment from .env when unconfigured', () => {
+        writeFileSync(path.join(workspaceRoot, '.env'), [
+            'N8N_HOST=https://auto.example.test',
+            'N8N_API_KEY=test-api-key-123',
+            'N8N_NATIVE_MCP_TOKEN=test-mcp-token-456',
+        ].join('\n'));
+
+        const configService = new ConfigService(workspaceRoot);
+        const resolved = configService.resolveEnvironment();
+
+        expect(resolved).toMatchObject({
+            environmentName: 'default',
+            host: 'https://auto.example.test',
+            apiKeyAvailable: true,
+            nativeMcp: {
+                enabled: true,
+                level: 2,
+            },
+        });
+    });
 });

@@ -369,4 +369,51 @@ describe('TypeScriptFormatter — nested fixedcollection', () => {
         // The option field inside fieldOptions must appear
         expect(expanded).toContain('option:');
     });
+
+    test('mapTypeToTypeScript: resourceLocator produces strict __rl object type', () => {
+        const rlProp = {
+            name: 'sheetId',
+            type: 'resourceLocator',
+        };
+        const tsType = (TypeScriptFormatter as any).mapTypeToTypeScript(rlProp);
+        expect(tsType).toContain('__rl: true');
+        expect(tsType).toContain('value: string');
+        expect(tsType).toContain('mode:');
+    });
+
+    test('generateDefaultValue: resourceLocator produces __rl object structure', () => {
+        const rlProp = {
+            name: 'sheetId',
+            type: 'resourceLocator',
+        };
+        const defVal = (TypeScriptFormatter as any).generateDefaultValue(rlProp);
+        expect(defVal).toContain('__rl: true');
+        expect(defVal).toContain("mode: 'list'");
+    });
+
+    test('generateCompactNodeSnippet: produces concise @node snippet without workflow class boilerplate', () => {
+        const snippet = TypeScriptFormatter.generateCompactNodeSnippet({
+            name: 'gmail',
+            type: 'n8n-nodes-base.gmail',
+            displayName: 'Gmail',
+            description: 'Work with Gmail',
+            version: [1, 2.1],
+            properties: [
+                { name: 'resource', type: 'options', options: [{ value: 'message' }, { value: 'draft' }] },
+                { name: 'operation', type: 'options', options: [{ value: 'getAll' }, { value: 'send' }] },
+            ]
+        });
+
+        expect(snippet).toContain("@node({");
+        expect(snippet).toContain("name: 'Gmail'");
+        expect(snippet).toContain("type: 'n8n-nodes-base.gmail'");
+        expect(snippet).toContain("version: 2.1");
+        expect(snippet).toContain("Gmail = {");
+        expect(snippet).toContain("resource: 'message'");
+        expect(snippet).toContain("operation: 'getAll'");
+        // Must NOT contain class or workflow wrappers
+        expect(snippet).not.toContain('@workflow');
+        expect(snippet).not.toContain('class MyWorkflow');
+        expect(snippet).not.toContain('@links');
+    });
 });

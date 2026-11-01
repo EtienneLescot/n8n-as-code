@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import fs from 'fs';
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname, resolve } from 'path';
+import { join, dirname, resolve, delimiter } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import {
     N8nApiClient,
@@ -70,22 +70,55 @@ function hasWorkspaceDevCommand(projectRoot: string): boolean {
     return N8NAC_DEV_CONFIG_FILENAMES.some((filename) => existsSync(join(projectRoot, filename)));
 }
 
+function isExecutableInPathOrProject(cmd: string, projectRoot: string): boolean {
+    // 1. Check local node_modules/.bin
+    const localBinDir = join(projectRoot, 'node_modules', '.bin');
+    if (existsSync(join(localBinDir, cmd)) || existsSync(join(localBinDir, `${cmd}.cmd`)) || existsSync(join(localBinDir, `${cmd}.ps1`))) {
+        return true;
+    }
+
+    // 2. Check PATH
+    const pathEnv = process.env.PATH || process.env.Path || '';
+    if (!pathEnv) return false;
+
+    const pathDirs = pathEnv.split(delimiter);
+    const extensions = process.platform === 'win32'
+        ? (process.env.PATHEXT ? process.env.PATHEXT.split(';') : ['.CMD', '.BAT', '.EXE', '.PS1'])
+        : [''];
+
+    for (const dir of pathDirs) {
+        if (!dir) continue;
+        for (const ext of extensions) {
+            const candidate = join(dir, ext ? `${cmd}${ext}` : cmd);
+            try {
+                if (existsSync(candidate)) {
+                    return true;
+                }
+            } catch {
+                // Ignore path errors
+            }
+        }
+    }
+
+    return false;
+}
+
 function inferLocalDevCliCommand(projectRoot: string): string | undefined {
     if (process.env.N8NAC_COMMAND || hasWorkspaceDevCommand(projectRoot)) {
         return undefined;
     }
 
     const entrypoint = process.argv[1] ? resolve(process.argv[1]) : '';
-    if (!entrypoint || entrypoint.includes(`${join('node_modules', '')}`)) {
-        return undefined;
+    if (entrypoint && entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js')) && !entrypoint.includes(`${join('node_modules', '')}`) && existsSync(entrypoint)) {
+        return `node ${quoteShellArg(entrypoint)}`;
     }
-    if (!entrypoint.endsWith(join('packages', 'cli', 'dist', 'index.js'))) {
-        return undefined;
+
+    // If n8nac is installed in PATH or in the project, prefer running it directly to avoid npx tax
+    if (isExecutableInPathOrProject('n8nac', projectRoot)) {
+        return 'n8nac';
     }
-    if (!existsSync(entrypoint)) {
-        return undefined;
-    }
-    return `node ${quoteShellArg(entrypoint)}`;
+
+    return undefined;
 }
 
 /**

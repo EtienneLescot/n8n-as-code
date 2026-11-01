@@ -118,6 +118,99 @@ export class MyWorkflow {
     }
 
     /**
+     * Generate a compact, copy-pasteable node property declaration without workflow class boilerplate.
+     * Ideal for quick reference and token-efficient AI prompts.
+     */
+    static generateCompactNodeSnippet(schema: {
+        name: string;
+        type: string;
+        displayName: string;
+        description: string;
+        version: number | number[];
+        properties?: any[];
+    }): string {
+        const latestVersion = Array.isArray(schema.version) 
+            ? Math.max(...schema.version) 
+            : schema.version;
+
+        // Get unique parameters with smart prioritization
+        const seenNames = new Set<string>();
+        const uniqueParams: any[] = [];
+        const allProps = schema.properties || [];
+        
+        // Priority 1: resource and operation (essential for most nodes)
+        for (const prop of allProps) {
+            if ((prop.name === 'resource' || prop.name === 'operation') && !seenNames.has(prop.name)) {
+                seenNames.add(prop.name);
+                uniqueParams.push(prop);
+            }
+        }
+        
+        // Priority 2: Required params (up to 7 total including resource/operation)
+        for (const prop of allProps) {
+            if (uniqueParams.length >= 7) break;
+            if (prop.required && !seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
+                seenNames.add(prop.name);
+                uniqueParams.push(prop);
+            }
+        }
+        
+        // Priority 3: Common optional params (to reach ~7 total)
+        for (const prop of allProps) {
+            if (uniqueParams.length >= 7) break;
+            if (!seenNames.has(prop.name) && prop.type?.toLowerCase() !== 'notice') {
+                seenNames.add(prop.name);
+                uniqueParams.push(prop);
+            }
+        }
+
+        // Build parameter object with comments
+        const paramLines: string[] = [];
+        
+        for (const prop of uniqueParams) {
+            const isFixedColl = prop.type?.toLowerCase() === 'fixedcollection';
+            let renderProp = prop;
+            if (isFixedColl) {
+                const siblings = allProps.filter((p: any) =>
+                    p.name === prop.name && p.type?.toLowerCase() === 'fixedcollection');
+                if (siblings.length > 1) {
+                    const mergedOptions = (siblings as any[]).flatMap((p: any) => p.options || []);
+                    renderProp = { ...prop, options: mergedOptions };
+                }
+            }
+            const value = isFixedColl
+                ? TypeScriptFormatter.expandFixedCollectionValue(renderProp, '  ')
+                : this.generateDefaultValue(prop);
+
+            let note = '';
+            if (prop.options && Array.isArray(prop.options) && prop.options.length > 0 && prop.options.length <= 8) {
+                note = ` // valid: ${prop.options.map((o: any) => o.value || o.name).join(' | ')}`;
+            } else if (prop.type?.toLowerCase() === 'resourcelocator') {
+                note = ` // resourceLocator object with __rl: true`;
+            } else if (prop.required) {
+                note = ` // (required)`;
+            }
+
+            paramLines.push(`  ${prop.name}: ${value},${note}`);
+        }
+
+        const paramsStr = paramLines.length > 0 
+            ? '\n' + paramLines.join('\n') + '\n'
+            : ' ';
+
+        const nodeProp = schema.name.charAt(0).toUpperCase() + schema.name.slice(1);
+
+        return `// ${schema.displayName} (${schema.type}@${latestVersion})
+// ${schema.description}
+@node({
+  name: '${schema.displayName}',
+  type: '${schema.type}',
+  version: ${latestVersion}
+})
+${nodeProp} = {${paramsStr}};`;
+    }
+
+    /**
      * Generate TypeScript interface for node parameters
      */
     static generateNodeInterface(schema: {
@@ -327,6 +420,8 @@ ${nodeProp} = { /* parameters */ };`;
             // At runtime the JSON structure is { assignments: Array<{id,name,value,type}> }
             case 'assignmentcollection':
                 return `{ assignments: Array<{ id?: string; name: string; value: string | number | boolean | unknown[] | Record<string, unknown>; type?: 'string' | 'number' | 'boolean' | 'array' | 'object' }> }`;
+            case 'resourcelocator':
+                return `{ __rl: true; value: string; mode: 'list' | 'id' | 'url' | string }`;
             case 'fixedcollection': {
                 const opts = prop.options as any[] | undefined;
                 if (!opts || opts.length === 0) return 'Record<string, any>';
@@ -453,6 +548,17 @@ ${nodeProp} = { /* parameters */ };`;
         // full assignments array — always override regardless of prop.default.
         if (type === 'assignmentcollection') {
             return `{\n    assignments: [\n      {\n        id: '1',\n        name: 'fieldName',\n        value: 'fieldValue',\n        type: 'string',  // valid: string | number | boolean | array | object\n      }\n    ]\n  }`;
+        }
+
+        // resourceLocator runtime structure requires __rl: true, mode, and value
+        if (type === 'resourcelocator') {
+            const mode = typeof prop.default === 'object' && prop.default !== null && prop.default.mode
+                ? prop.default.mode
+                : 'list';
+            const value = typeof prop.default === 'object' && prop.default !== null && prop.default.value !== undefined
+                ? prop.default.value
+                : (typeof prop.default === 'string' ? prop.default : '');
+            return `{ __rl: true, value: '${value}', mode: '${mode}' }`;
         }
 
         if (prop.default !== undefined && prop.default !== null) {
