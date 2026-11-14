@@ -754,12 +754,26 @@ describe('N8nApiClient test workflow support', () => {
     });
 
     describe('verifyAccess', () => {
+        it('checks workflow access without requiring a project-admin license', async () => {
+            const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'key' });
+            mockAxiosGet.mockImplementation(async (url: string) => {
+                if (url === '/api/v1/workflows') return { status: 200, data: { data: [] } };
+                throw { response: { status: 403, data: {
+                    message: 'Your license does not allow for feat:projectRole:admin.',
+                } } };
+            });
+
+            await expect(client.verifyAccess()).resolves.toEqual({ ok: true });
+            expect(mockAxiosGet).toHaveBeenCalledTimes(1);
+            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/workflows', { params: { limit: 1 } });
+        });
+
         it('accepts only a 2xx as proof the n8n public API took the key', async () => {
             const client = new N8nApiClient({ host: 'https://n8n.local', apiKey: 'key' });
             mockAxiosGet.mockResolvedValueOnce({ status: 200, data: { data: [] } });
 
             await expect(client.verifyAccess()).resolves.toEqual({ ok: true });
-            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/projects', { params: { limit: 1 } });
+            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/workflows', { params: { limit: 1 } });
         });
 
         it('reports 401/403 as an unauthorized key', async () => {
@@ -794,7 +808,7 @@ describe('N8nApiClient test workflow support', () => {
 
             await client.verifyAccess(5000);
 
-            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/projects', {
+            expect(mockAxiosGet).toHaveBeenCalledWith('/api/v1/workflows', {
                 params: { limit: 1 },
                 timeout: 5000,
                 signal: expect.any(AbortSignal),

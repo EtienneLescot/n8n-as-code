@@ -292,7 +292,9 @@ export class N8nApiClient {
      */
     async verifyAccess(timeoutMs?: number): Promise<{ ok: boolean; reason?: 'unauthorized' | 'unreachable' | 'api-unavailable'; status?: number }> {
         try {
-            await this.client.get('/api/v1/projects', {
+            // The projects endpoint requires a project-admin license, even with a valid key.
+            // Probe workflow access on Community instances as well.
+            await this.client.get('/api/v1/workflows', {
                 params: { limit: 1 },
                 ...(timeoutMs ? { timeout: timeoutMs, signal: AbortSignal.timeout(timeoutMs) } : {}),
             });
