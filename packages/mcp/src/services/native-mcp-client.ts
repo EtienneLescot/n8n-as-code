@@ -1,4 +1,5 @@
 import type { NativeMcpConfig } from './native-mcp-config.js';
+import { NATIVE_MCP_TOOL_NAME_ALIASES, resolveNativeMcpToolName } from './native-mcp-tools.js';
 
 interface JsonRpcRequest {
     jsonrpc: '2.0';
@@ -86,24 +87,43 @@ export class NativeMcpHttpClient {
     constructor(private readonly config: NativeMcpConfig) {}
 
     async listTools(): Promise<NativeMcpListToolsResult> {
+        return this.withSession((sessionId) => this.listToolsOnSession(sessionId));
+    }
+
+    /**
+     * n8n renamed some of the tools the bridge dispatches to. Callers name them canonically,
+     * so the spelling this instance actually advertises is picked here, inside the same
+     * session: an alias-only map would leave dispatch sending a name the server never had.
+     * Only names with legacy spellings cost the extra `tools/list`; the rest go straight out.
+     */
+    async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
         return this.withSession(async (sessionId) => {
-            const tools: Array<Record<string, unknown>> = [];
-            let cursor: string | undefined;
-
-            do {
-                const params = cursor ? { cursor } : undefined;
-                const result = await this.rpc('tools/list', params, sessionId) as Record<string, unknown>;
-                const pageTools = Array.isArray(result?.tools) ? result.tools as Array<Record<string, unknown>> : [];
-                tools.push(...pageTools);
-                cursor = typeof result?.nextCursor === 'string' ? result.nextCursor : undefined;
-            } while (cursor);
-
-            return { tools };
+            if (!NATIVE_MCP_TOOL_NAME_ALIASES[name]) {
+                return this.rpc('tools/call', { name, arguments: args }, sessionId);
+            }
+            const tools = (await this.listToolsOnSession(sessionId)).tools;
+            const available = tools.map((tool) => String(tool.name || ''));
+            const resolved = resolveNativeMcpToolName(name, available);
+            if (!resolved) {
+                throw new Error(`Native n8n MCP server does not expose the tool "${name}".`);
+            }
+            return this.rpc('tools/call', { name: resolved, arguments: args }, sessionId);
         });
     }
 
-    async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-        return this.withSession((sessionId) => this.rpc('tools/call', { name, arguments: args }, sessionId));
+    private async listToolsOnSession(sessionId?: string): Promise<NativeMcpListToolsResult> {
+        const tools: Array<Record<string, unknown>> = [];
+        let cursor: string | undefined;
+
+        do {
+            const params = cursor ? { cursor } : undefined;
+            const result = await this.rpc('tools/list', params, sessionId) as Record<string, unknown>;
+            const pageTools = Array.isArray(result?.tools) ? result.tools as Array<Record<string, unknown>> : [];
+            tools.push(...pageTools);
+            cursor = typeof result?.nextCursor === 'string' ? result.nextCursor : undefined;
+        } while (cursor);
+
+        return { tools };
     }
 
     private async withSession<T>(callback: (sessionId?: string) => Promise<T>): Promise<T> {

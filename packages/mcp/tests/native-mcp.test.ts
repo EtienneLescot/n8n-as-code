@@ -2,6 +2,13 @@ import { describe, test, expect, afterEach, jest } from '@jest/globals';
 import { NativeMcpHttpClient } from '../src/services/native-mcp-client';
 import { loadNativeMcpConfig, redactNativeMcpConfig } from '../src/services/native-mcp-config';
 import { N8nAsCodeMcpService } from '../src/services/mcp-service';
+import {
+    NATIVE_MCP_READ_ONLY_TOOL_MAP,
+    buildNativeMcpCapabilities,
+    missingNativeMcpTools,
+    nativeMcpToolNameCandidates,
+    resolveNativeMcpToolName,
+} from '../src/services/native-mcp-tools';
 
 describe('native n8n MCP config', () => {
     test('is disabled by default even when no endpoint is configured', () => {
@@ -254,5 +261,202 @@ describe('NativeMcpHttpClient', () => {
         expect((calls[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer secret-token');
         expect((calls[2].init?.headers as Record<string, string>)['mcp-session-id']).toBe('session-1');
         expect(calls[3].init?.method).toBe('DELETE');
+    });
+
+    test('resolves renamed native tools against the names the instance advertises', async () => {
+        const responses = [
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18' } }), {
+                status: 200,
+                headers: { 'mcp-session-id': 'session-1', 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+            new Response(JSON.stringify({
+                jsonrpc: '2.0',
+                id: 2,
+                result: {
+                    tools: [
+                        { name: 'search_workflow_executions' },
+                        { name: 'get_workflow_execution' },
+                        { name: 'get_workflow_sdk_reference' },
+                    ],
+                },
+            }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            }),
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 3, result: { content: [] } }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+        ];
+        const payloads: any[] = [];
+        jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input: any, init?: RequestInit) => {
+            if (init?.body) payloads.push(JSON.parse(String(init.body)));
+            const response = responses.shift();
+            if (!response) throw new Error('Unexpected fetch call');
+            return response;
+        });
+
+        const client = new NativeMcpHttpClient(loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+        }));
+
+        await client.callTool(NATIVE_MCP_READ_ONLY_TOOL_MAP.getNativeSdkReference, { section: 'patterns' });
+
+        expect(payloads.find((payload) => payload.method === 'tools/call')?.params).toEqual({
+            name: 'get_workflow_sdk_reference',
+            arguments: { section: 'patterns' },
+        });
+    });
+
+    test('dispatches legacy native tool names unchanged on older instances', async () => {
+        const responses = [
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18' } }), {
+                status: 200,
+                headers: { 'mcp-session-id': 'session-1', 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tools: [{ name: 'get_execution' }] } }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            }),
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 3, result: { content: [] } }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+        ];
+        const payloads: any[] = [];
+        jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input: any, init?: RequestInit) => {
+            if (init?.body) payloads.push(JSON.parse(String(init.body)));
+            const response = responses.shift();
+            if (!response) throw new Error('Unexpected fetch call');
+            return response;
+        });
+
+        const client = new NativeMcpHttpClient(loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+        }));
+
+        await client.callTool(NATIVE_MCP_READ_ONLY_TOOL_MAP.getLiveExecution, { executionId: '42' });
+
+        expect(payloads.find((payload) => payload.method === 'tools/call')?.params).toEqual({
+            name: 'get_execution',
+            arguments: { executionId: '42' },
+        });
+    });
+
+    test('reports a native tool the instance does not expose instead of calling it blind', async () => {
+        const responses = [
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18' } }), {
+                status: 200,
+                headers: { 'mcp-session-id': 'session-1', 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tools: [{ name: 'search_workflows' }] } }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+        ];
+        const payloads: any[] = [];
+        jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input: any, init?: RequestInit) => {
+            if (init?.body) payloads.push(JSON.parse(String(init.body)));
+            const response = responses.shift();
+            if (!response) throw new Error('Unexpected fetch call');
+            return response;
+        });
+
+        const client = new NativeMcpHttpClient(loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+        }));
+
+        await expect(client.callTool(NATIVE_MCP_READ_ONLY_TOOL_MAP.searchLiveExecutions, {}))
+            .rejects.toThrow('does not expose the tool "search_workflow_executions"');
+        expect(payloads.some((payload) => payload.method === 'tools/call')).toBe(false);
+    });
+
+    test('does not list tools again for native names without a legacy spelling', async () => {
+        const responses = [
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18' } }), {
+                status: 200,
+                headers: { 'mcp-session-id': 'session-1', 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+            new Response(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tools: [] } }), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+            }),
+            new Response('', { status: 202 }),
+        ];
+        const payloads: any[] = [];
+        jest.spyOn(globalThis, 'fetch').mockImplementation(async (_input: any, init?: RequestInit) => {
+            if (init?.body) payloads.push(JSON.parse(String(init.body)));
+            const response = responses.shift();
+            if (!response) throw new Error('Unexpected fetch call');
+            return response;
+        });
+
+        const client = new NativeMcpHttpClient(loadNativeMcpConfig({
+            N8NAC_NATIVE_MCP_ENABLED: '1',
+            N8N_NATIVE_MCP_URL: 'https://n8n.example.test/mcp-server/http',
+        }));
+
+        await client.callTool(NATIVE_MCP_READ_ONLY_TOOL_MAP.searchLiveWorkflows, { query: 'nightly' });
+
+        expect(payloads.some((payload) => payload.method === 'tools/list')).toBe(false);
+        expect(payloads.find((payload) => payload.method === 'tools/call')?.params).toEqual({
+            name: 'search_workflows',
+            arguments: { query: 'nightly' },
+        });
+    });
+});
+
+describe('native tool name aliases', () => {
+    const renamedTools = [
+        { canonical: 'search_workflow_executions', legacy: 'search_executions' },
+        { canonical: 'get_workflow_execution', legacy: 'get_execution' },
+        { canonical: 'get_workflow_sdk_reference', legacy: 'get_sdk_reference' },
+    ];
+
+    test('prefers the current name and keeps the legacy spelling as an alias', () => {
+        for (const { canonical, legacy } of renamedTools) {
+            expect(resolveNativeMcpToolName(canonical, [canonical])).toBe(canonical);
+            expect(resolveNativeMcpToolName(canonical, [legacy])).toBe(legacy);
+            expect(resolveNativeMcpToolName(canonical, [canonical, legacy])).toBe(canonical);
+            expect(resolveNativeMcpToolName(canonical, ['unrelated_tool'])).toBeUndefined();
+        }
+    });
+
+    test('leaves names without a legacy spelling alone', () => {
+        expect(nativeMcpToolNameCandidates('search_workflows')).toEqual(['search_workflows']);
+        expect(nativeMcpToolNameCandidates('search_workflow_executions')).toEqual(['search_workflow_executions', 'search_executions']);
+    });
+
+    test('treats a tool as present when either spelling is advertised', () => {
+        const currentInstance = [{ name: 'search_workflow_executions' }, { name: 'get_workflow_execution' }, { name: 'get_workflow_sdk_reference' }];
+        const legacyInstance = [{ name: 'search_executions' }, { name: 'get_execution' }, { name: 'get_sdk_reference' }];
+
+        expect(missingNativeMcpTools(currentInstance)).toContain('search_workflows');
+        expect(missingNativeMcpTools(currentInstance)).not.toContain('search_workflow_executions');
+        expect(missingNativeMcpTools(legacyInstance)).not.toContain('search_workflow_executions');
+    });
+
+    test('reports executions and the SDK reference available on a current n8n instance', () => {
+        const capabilities = buildNativeMcpCapabilities([
+            { name: 'search_workflow_executions' },
+            { name: 'get_workflow_execution' },
+            { name: 'get_workflow_sdk_reference' },
+            { name: 'search_nodes' },
+            { name: 'get_node_types' },
+            { name: 'validate_workflow' },
+        ]);
+
+        expect(capabilities.executions).toBe(true);
+        expect(capabilities.workflowBuilderReference).toBe(true);
     });
 });
