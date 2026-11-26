@@ -10,15 +10,6 @@
   "icon": "./assets/icon.svg",
   "homepage": "https://n8nascode.dev/docs/usage/claude-plugin/",
   "repository": "https://github.com/EtienneLescot/n8n-as-code",
-  "mcpServers": {
-    "n8n-as-code": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@n8n-as-code/mcp@2.2.1"
-      ]
-    }
-  },
   "skills": "./skills/",
   "keywords": [
     "n8n",
