@@ -103,7 +103,7 @@ jobs:
             throw new Error(`Expected slim plugin.skills to be ./skills/, got ${slimPlugin.skills}`);
           }
 
-          if (slimPlugin.mcpServers) {
+          if (Object.hasOwn(slimPlugin, 'mcpServers')) {
             throw new Error('The Claude plugin must not declare mcpServers: the directory policy refuses npx launchers, even pinned ones. The skill drives the n8nac CLI instead.');
           }
 
