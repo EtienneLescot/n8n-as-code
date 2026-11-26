@@ -64,20 +64,7 @@ npx --yes n8nac@next env list
 npx --yes @n8n-as-code/n8n-manager@next instance list
 ```
 
-## MCP
-
-For Claude Desktop or other MCP clients:
-
-```json
-{
-  "mcpServers": {
-    "n8n-as-code": {
-      "command": "npx",
-      "args": ["--yes", "n8nac", "skills", "mcp"]
-    }
-  }
-}
-```
+## Documentation
 
 Full documentation: https://n8nascode.dev/docs/usage/claude-plugin/
 
