@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { N8nAsCodeMcpService } from '../src/services/mcp-service';
-import { NATIVE_MCP_READ_ONLY_TOOL_MAP, type NativeMcpReadOnlyToolAlias } from '../src/services/native-mcp-tools';
+import { NATIVE_MCP_READ_ONLY_TOOL_MAP, resolveNativeMcpToolName, type NativeMcpReadOnlyToolAlias } from '../src/services/native-mcp-tools';
 
 interface LiveNativeMcpTestConfig {
     endpoint: string;
@@ -84,7 +84,7 @@ describeLive('native MCP live agent routing', () => {
 
         nativeToolNames = new Set(status.tools?.names || []);
         for (const toolName of liveConfig!.expectedTools) {
-            expect(nativeToolNames.has(toolName)).toBe(true);
+            expect(resolveNativeMcpToolName(toolName, nativeToolNames)).toBeDefined();
         }
     }, liveTestTimeoutMs);
 
@@ -119,7 +119,7 @@ async function runScriptedAgentUseCase(
     }
 
     const nativeToolName = NATIVE_MCP_READ_ONLY_TOOL_MAP[useCase.nativeAlias];
-    if (!nativeToolNames.has(nativeToolName)) {
+    if (resolveNativeMcpToolName(nativeToolName, nativeToolNames) === undefined) {
         throw new Error(`Connected native MCP server does not expose required tool "${nativeToolName}" for use case "${useCase.name}".`);
     }
 

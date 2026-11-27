@@ -166,9 +166,9 @@ When the active environment has `nativeMcp.enabled=true`, or when the environmen
 | `search_n8n_live_projects` | `search_projects` | Discover n8n projects |
 | `search_n8n_live_folders` | `search_folders` | Discover folders in a project |
 | `list_n8n_live_credentials` | `list_credentials` | List credential metadata without secrets |
-| `search_n8n_live_executions` | `search_executions` | Search execution metadata |
-| `get_n8n_live_execution` | `get_execution` | Inspect an execution. Full execution payloads require `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` |
-| `get_n8n_native_sdk_reference` | `get_sdk_reference` | Read native workflow-builder SDK guidance |
+| `search_n8n_live_executions` | `search_workflow_executions` | Search execution metadata |
+| `get_n8n_live_execution` | `get_workflow_execution` | Inspect an execution. Full execution payloads require `N8NAC_NATIVE_MCP_ALLOW_EXECUTION_DATA=1` |
+| `get_n8n_native_sdk_reference` | `get_workflow_sdk_reference` | Read native workflow-builder SDK guidance |
 | `search_n8n_native_nodes` | `search_nodes` | Search live node definitions |
 | `get_n8n_native_node_types` | `get_node_types` | Fetch native TypeScript node definitions |
 | `validate_n8n_native_workflow_code` | `validate_workflow` | Validate native workflow-builder code without creating workflows |
