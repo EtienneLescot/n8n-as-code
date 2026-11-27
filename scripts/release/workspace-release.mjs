@@ -96,7 +96,7 @@ const CROSS_PACKAGE_RULES = [
   },
   {
     matches(file) {
-      return file === '.claude-plugin/marketplace.json' || file.startsWith('plugins/claude/') || file === 'CLAUDE_PLUGIN_SUBMISSION_DRAFT.md';
+      return file === '.claude-plugin/marketplace.json' || file.startsWith('plugins/claude/') || file.startsWith('plugins/codex/') || file === 'CLAUDE_PLUGIN_SUBMISSION_DRAFT.md';
     },
     packages: ['@n8n-as-code/skills'],
   },
@@ -328,6 +328,11 @@ function syncClaudePluginVersion(changedVersions) {
   const pluginManifest = readJson(pluginManifestPath);
   pluginManifest.version = skillsVersion;
   writeJson(pluginManifestPath, pluginManifest);
+
+  const codexManifestPath = 'plugins/codex/n8n-as-code/.codex-plugin/plugin.json';
+  const codexManifest = readJson(codexManifestPath);
+  codexManifest.version = skillsVersion;
+  writeJson(codexManifestPath, codexManifest);
 
   const marketplace = readJson('.claude-plugin/marketplace.json');
   if (marketplace.metadata) {

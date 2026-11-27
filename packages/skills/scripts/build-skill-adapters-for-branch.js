@@ -14,6 +14,7 @@ const generatedFiles = [
   'plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md',
   'plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md',
   'plugins/cursor/n8n-as-code/skills/n8n-architect/SKILL.md',
+  'plugins/codex/n8n-as-code/skills/n8n-architect/SKILL.md',
 ];
 
 function run(command, args, options = {}) {

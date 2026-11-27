@@ -57,7 +57,8 @@ jobs:
             skills/n8n-architect/SKILL.md \
             plugins/claude/n8n-as-code/skills/n8n-architect/SKILL.md \
             plugins/openclaw/n8n-as-code/skills/n8n-architect/SKILL.md \
-            plugins/cursor/n8n-as-code/skills/n8n-architect/SKILL.md
+            plugins/cursor/n8n-as-code/skills/n8n-architect/SKILL.md \
+            plugins/codex/n8n-as-code/skills/n8n-architect/SKILL.md
           do
             if ! git diff --quiet --exit-code -- "$file"; then
               echo "Error: $file was modified by the skill adapters build."
