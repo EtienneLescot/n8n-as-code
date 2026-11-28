@@ -21,7 +21,7 @@ It covers the plugin package, its bundled skill file, and the `n8nac` CLI that t
 ## Summary
 
 - The plugin contains a skill only. It has no hosted backend and no MCP server operated by the project author.
-- Workflow files, prompts, and configuration stay in the user's local workspace and their own n8n instance.
+- Workflow files and configuration stay in the user's local workspace and their own n8n instance. Prompts are processed by the OpenAI service that runs Codex or ChatGPT.
 - The project author does not collect workflow content, prompts, credentials, or n8n data through the plugin.
 
 ## Data the plugin may access
