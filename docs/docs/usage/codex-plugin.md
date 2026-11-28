@@ -31,15 +31,15 @@ https://github.com/EtienneLescot/n8n-as-code/tree/main/plugins/codex/n8n-as-code
 Ask Codex to set up n8n-as-code in the repository. The skill guides it through:
 
 - creating or selecting an n8n environment
-- storing the n8n API key locally in the workspace
+- storing the n8n API key in the local n8n-as-code secret store on your machine (outside the workspace; `n8nac env auth clear <name>` removes it)
 - generating `AGENTS.md`
 - materializing `.agents/skills/n8n-architect`
 
-Manual equivalent:
+Manual equivalent, with the API key already in the `N8N_API_KEY` environment variable (`--api-key-stdin` reads until end of input):
 
 ```bash
 npx --yes n8nac env add Dev --base-url <url> --workflows-path workflows/dev
-npx --yes n8nac env auth set Dev --api-key-stdin
+printf '%s' "$N8N_API_KEY" | npx --yes n8nac env auth set Dev --api-key-stdin
 npx --yes n8nac env use Dev
 npx --yes n8nac update-ai
 ```

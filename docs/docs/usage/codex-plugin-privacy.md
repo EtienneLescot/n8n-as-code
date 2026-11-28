@@ -58,7 +58,7 @@ The `n8nac` CLI sends anonymous product usage telemetry that contains no workflo
 
 ## Credentials and secrets
 
-Users configure their own n8n API keys in their local workspace. The plugin never asks users to send credentials to the project author.
+Users configure their own n8n API keys. `n8nac` keeps them in a local secret store on the user's machine, outside the workspace, so deleting the workspace does not remove them; `n8nac env auth clear <name>` does. The plugin never asks users to send credentials to the project author.
 
 ## Retention
 
