@@ -22,6 +22,7 @@ const PLUGIN_SKILL_ROOTS = [
   path.join(WORKSPACE_ROOT, 'plugins', 'claude', 'n8n-as-code', 'skills'),
   path.join(WORKSPACE_ROOT, 'plugins', 'openclaw', 'n8n-as-code', 'skills'),
   path.join(WORKSPACE_ROOT, 'plugins', 'cursor', 'n8n-as-code', 'skills'),
+  path.join(WORKSPACE_ROOT, 'plugins', 'codex', 'n8n-as-code', 'skills'),
 ];
 const MIRROR_SKILL_ROOTS = [
   ROOT_SKILLS_DIR,

@@ -35,6 +35,11 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
+          id: 'usage/codex-plugin',
+          label: 'Codex / ChatGPT Plugin',
+        },
+        {
+          type: 'doc',
           id: 'usage/openclaw',
           label: 'OpenClaw Plugin',
         },
@@ -72,6 +77,11 @@ const sidebars: SidebarsConfig = {
           type: 'doc',
           id: 'usage/claude-plugin-privacy',
           label: 'Claude Plugin Privacy',
+        },
+        {
+          type: 'doc',
+          id: 'usage/codex-plugin-privacy',
+          label: 'Codex Plugin Privacy',
         },
         {
           type: 'doc',
