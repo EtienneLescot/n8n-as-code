@@ -51,6 +51,8 @@ The Agent can use:
 - generated `AGENTS.md`
 - bundled n8n schemas, docs, examples, templates, and validation rules
 
+The Workbench also includes free web search and page fetching through [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) in trusted workspaces, with no account or API key. Search uses Fast mode. Queries and requested URLs are sent to Parallel. Set `n8n.agent.webSearch.enabled` to `false` to disable these connections on the next turn. Model-provider setup and native n8n MCP settings are unchanged. See the [web search guide](https://n8nascode.dev/docs/usage/vscode-extension/#web-search-in-the-agent-workbench).
+
 ### Visual Workflow Workspace
 
 - Browse local and remote workflows from the `n8n` sidebar.

@@ -325,6 +325,13 @@
     "configuration": {
       "title": "n8n as Code",
       "properties": {
+        "n8n.agent.webSearch.enabled": {
+          "type": "boolean",
+          "included": false,
+          "default": true,
+          "scope": "resource",
+          "markdownDescription": "Allow the Agent Workbench to search public web pages and fetch URLs with [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp), without an account or API key. Queries and requested URLs are sent to Parallel. Requires a trusted workspace; disable to prevent these connections. Changes apply on the next turn."
+        },
         "n8n.agent.provider": {
           "type": "string",
           "included": false,
