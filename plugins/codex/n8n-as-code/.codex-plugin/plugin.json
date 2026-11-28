@@ -18,6 +18,7 @@
     "n8nac"
   ],
   "skills": "./skills/",
+  "requires_local_executor": true,
   "interface": {
     "displayName": "n8n-as-code",
     "shortDescription": "Build n8n workflows as code",
